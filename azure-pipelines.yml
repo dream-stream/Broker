@@ -25,7 +25,7 @@ stages:
       inputs:
         containerRegistry: 'dockerHub'
         repository: | 
-          'dreamstream/broker'
+          dreamstream/broker
         command: 'buildAndPush'
         Dockerfile: '**/Dream-Stream/Dockerfile'
         tags: |
