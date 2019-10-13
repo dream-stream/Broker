@@ -1,0 +1,58 @@
+# Docker
+# Build a Docker image 
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- master
+
+resources:
+- repo: self
+
+variables:
+  tag: '$(Build.BuildId)'
+  image: dreamstream/broker
+
+stages:
+- stage: Build
+  displayName: Build image
+  jobs:  
+  - job: Build
+    displayName: Build
+    pool: Anders
+    steps:
+    - task: Docker@2
+      displayName: Build an image
+      inputs:
+        containerRegistry: 'dockerHub'
+        repository: | 
+          $(image)
+        command: 'buildAndPush'
+        Dockerfile: './Dream-Stream/Dockerfile'
+        buildContext: '.'
+        tags: |
+          $(tag)
+- stage: Release
+  displayName: Release
+  jobs:  
+  - job: Release
+    displayName: Release
+    pool: Anders
+    steps:
+    # - task: Kubernetes@0
+    #   displayName: 'kubectl apply'
+    #   inputs:
+    #     kubernetesServiceConnection: KubeAnders
+    #     command: apply
+    #     arguments: '-f ./kubectl.yaml'
+    - task: KubernetesManifest@0
+      inputs:
+        action: 'deploy'
+        namespace: default
+        kubernetesServiceConnection: 'KubeAnders'
+        manifests: | 
+          manifests/statefulset.yaml
+          manifests/service.yaml
+        containers: | 
+          $(image):$(tag)
+          $(image):$(tag)
+
