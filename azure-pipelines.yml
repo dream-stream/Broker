@@ -28,5 +28,6 @@ stages:
           dreamstream/broker
         command: 'buildAndPush'
         Dockerfile: '**/Dream-Stream/Dockerfile'
+        buildContext: '**'
         tags: |
           $(tag)
