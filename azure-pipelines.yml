@@ -10,6 +10,7 @@ resources:
 
 variables:
   tag: '$(Build.BuildId)'
+  image: dreamstream/broker
 
 stages:
 - stage: Build
@@ -24,22 +25,29 @@ stages:
       inputs:
         containerRegistry: 'dockerHub'
         repository: | 
-          dreamstream/broker
+          $(image)
         command: 'buildAndPush'
         Dockerfile: './Dream-Stream/Dockerfile'
         buildContext: '.'
         tags: |
           $(tag)
 - stage: Release
-  displayName: Build image
+  displayName: Release
   jobs:  
   - job: Release
     displayName: Release
     pool: Anders
     steps:
-    - task: Kubernetes@0
-      displayName: 'kubectl apply'
+    # - task: Kubernetes@0
+    #   displayName: 'kubectl apply'
+    #   inputs:
+    #     kubernetesServiceConnection: KubeAnders
+    #     command: apply
+    #     arguments: '-f ./kubectl.yaml'
+    - task: KubernetesManifest@0
       inputs:
-        kubernetesServiceConnection: KubeAnders
-        command: apply
-        arguments: '-f ./kubectl.yaml'
+        action: 'deploy'
+        namespace: default
+        kubernetesServiceConnection: 'KubeAnders'
+        manifests: 'kubectl.yaml'
+        containers: $(image):$(tag)
