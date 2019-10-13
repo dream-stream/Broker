@@ -49,5 +49,8 @@ stages:
         action: 'deploy'
         namespace: default
         kubernetesServiceConnection: 'KubeAnders'
-        manifests: 'kubectl.yaml'
-        containers: '$(image):$(tag)'
+        manifests: manifests/statefulset.yaml|manifests/service.yaml
+        containers: | 
+          $(image):$(tag)
+          $(image):$(tag)
+
