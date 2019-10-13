@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: broker
+  labels:
+    app: broker
+    release: prometheus
+spec:
+  ports:
+  - port: 80
+    name: web
+  clusterIP: None
+  selector:
+    app: broker
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: broker
+spec:
+  selector:
+    matchLabels:
+      app: broker
+  serviceName: "broker"
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: broker
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: broker
+        image: banders2/dreamstream-broker
+        ports:
+        - containerPort: 80
+          name: broker
