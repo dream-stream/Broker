@@ -50,4 +50,4 @@ stages:
         namespace: default
         kubernetesServiceConnection: 'KubeAnders'
         manifests: 'kubectl.yaml'
-        containers: $(image):$(tag)
+        containers: '$(image):$(tag)'
