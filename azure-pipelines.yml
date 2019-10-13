@@ -17,8 +17,7 @@ stages:
   jobs:  
   - job: Build
     displayName: Build
-    pool:
-      vmImage: 'ubuntu-latest'
+    pool: Anders
     steps:
     - task: Docker@2
       displayName: Build an image
@@ -31,7 +30,16 @@ stages:
         buildContext: '.'
         tags: |
           $(tag)
-    - task: PublishPipelineArtifact@1
+- stage: Release
+  displayName: Build image
+  jobs:  
+  - job: Release
+    displayName: Release
+    pool: Anders
+    steps:
+    - task: Kubernetes@0
+      displayName: 'kubectl apply'
       inputs:
-        targetPath: '$(Pipeline.Workspace)'
-        artifact: 'BrokerArtifact'
+        kubernetesServiceConnection: KubeAnders
+        command: apply
+        arguments: '-f ./kubectl.yaml'
