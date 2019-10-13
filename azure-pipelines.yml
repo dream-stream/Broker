@@ -32,27 +32,18 @@ stages:
         tags: |
           $(tag)
 - stage: Release
-  displayName: Release
   jobs:  
-  - job: Release
-    displayName: Release
+  - deployment: Release
     pool: Anders
-    steps:
-    # - task: Kubernetes@0
-    #   displayName: 'kubectl apply'
-    #   inputs:
-    #     kubernetesServiceConnection: KubeAnders
-    #     command: apply
-    #     arguments: '-f ./kubectl.yaml'
-    - task: KubernetesManifest@0
-      inputs:
-        action: 'deploy'
-        namespace: default
-        kubernetesServiceConnection: 'KubeAnders'
-        manifests: | 
-          manifests/statefulset.yaml
-          manifests/service.yaml
-        containers: | 
-          $(image):$(tag)
-          $(image):$(tag)
-
+    environment: 'test'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: KubernetesManifest@0
+            inputs:
+              action: 'deploy'
+              namespace: default
+              kubernetesServiceConnection: 'KubeAnders'
+              manifests: manifests/*
+              containers: 'dreamstream/broker:$(tag)'
