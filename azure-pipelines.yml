@@ -31,3 +31,7 @@ stages:
         buildContext: '.'
         tags: |
           $(tag)
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: '$(Pipeline.Workspace)'
+        artifact: 'BrokerArtifact'
