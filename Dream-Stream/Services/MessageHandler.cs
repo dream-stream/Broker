@@ -13,7 +13,12 @@ namespace Dream_Stream.Services
 {
     public class MessageHandler
     {
-        private static readonly Counter Counter = Metrics.CreateCounter("Messages_Received", "");
+        private static readonly Counter MessageBatchesReceived = Metrics.CreateCounter("Message_Batches_Received", "", new CounterConfiguration
+        {
+            LabelNames = new []{"Topic"}
+        });
+        private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_Received", "Total number of messages received.");
+
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
@@ -34,7 +39,7 @@ namespace Dream_Stream.Services
                     {
                         case MessageContainer msg:
                             await HandlePublishMessage(msg);
-                            Counter.Inc();
+                            MessageBatchesReceived.WithLabels(msg.Header.Topic).Inc();
                             break;
                         case SubscriptionRequest msg:
                             await HandleSubscriptionRequest(msg, webSocket);
@@ -83,6 +88,7 @@ namespace Dream_Stream.Services
             //TODO Store the message
             //TODO Respond to publisher that the message is received correctly
             messages.Print();
+            MessagesReceived.Inc(messages.Messages.Count);
             await Task.Run(() => Task.CompletedTask);
         }
     }
