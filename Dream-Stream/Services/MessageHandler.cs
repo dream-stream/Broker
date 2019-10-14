@@ -13,11 +13,11 @@ namespace Dream_Stream.Services
 {
     public class MessageHandler
     {
-        private static readonly Counter MessageBatchesReceived = Metrics.CreateCounter("Message_Batches_Received", "", new CounterConfiguration
+        private static readonly Counter MessageBatchesReceived = Metrics.CreateCounter("message_batches_received", "", new CounterConfiguration
         {
             LabelNames = new []{"Topic"}
         });
-        private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_Received", "Total number of messages received.");
+        private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.");
 
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
