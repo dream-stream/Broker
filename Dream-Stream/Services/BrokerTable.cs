@@ -52,8 +52,8 @@ namespace Dream_Stream.Services
 
         private async void KeepAliveResponseHandler(LeaseKeepAliveResponse leaseKeepAliveResponse)
         {
-            //Console.WriteLine(leaseKeepAliveResponse);
             if (leaseKeepAliveResponse.TTL == LeaseTtl) return;
+            Console.WriteLine("Failed the KeepAliveResponse, disposing the current timer and starting a new");
             await _timer.DisposeAsync();
             await ImHere();
         }

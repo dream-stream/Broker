@@ -36,8 +36,15 @@ namespace Dream_Stream
                 {
                     if (context.WebSockets.IsWebSocketRequest)
                     {
-                        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-                        await new MessageHandler().Handle(context, webSocket);
+                        try
+                        {
+                            var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+                            await new MessageHandler().Handle(context, webSocket);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"Connection closed from startup with exception: {e}");
+                        }
                     }
                     else
                     {
