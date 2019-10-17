@@ -18,7 +18,7 @@ namespace Dream_Stream.Services
             LabelNames = new []{"Topic"}
         });
         private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.");
-
+        private static readonly List<MessageContainer> Messages = new List<MessageContainer>();
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
@@ -38,7 +38,7 @@ namespace Dream_Stream.Services
                     switch (message)
                     {
                         case MessageContainer msg:
-                            await HandlePublishMessage(msg);
+                            await HandlePublishMessage(msg, webSocket);
                             MessageBatchesReceived.WithLabels(msg.Header.Topic).Inc();
                             break;
                         case SubscriptionRequest msg:
@@ -48,13 +48,13 @@ namespace Dream_Stream.Services
                             await HandleMessageRequest(msg, webSocket);
                             break;
                     }
-                    
-                    
+
                 } while (!result.CloseStatus.HasValue);
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                //Console.WriteLine(e);
+                Console.WriteLine($"Connection closed");
             }
             finally
             {
@@ -65,31 +65,39 @@ namespace Dream_Stream.Services
         private static async Task HandleMessageRequest(MessageRequest msg, WebSocket webSocket)
         {
             //TODO Handle MessageRequest correctly
-            var buffer = LZ4MessagePackSerializer.Serialize<IMessage>(new MessageContainer
+            if (Messages.Count == 0)
             {
-                Header = new MessageHeader {Topic = "SensorData", Partition = 3},
-                Messages = new List<Message> { new Message {Address = "Address", LocationDescription = "Description", SensorType = "Sensor", Measurement = 20, Unit = "Unit"}}
-            });
-            await webSocket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Binary, false,
-                CancellationToken.None);
+                await SendResponse(new NoNewMessage(), webSocket);
+                return;
+            }
+            
+            await SendResponse(Messages[0], webSocket);
+            Messages.RemoveAt(0);
         }
 
         private static async Task HandleSubscriptionRequest(SubscriptionRequest message, WebSocket webSocket)
         {
             //TODO Handle SubRequest correctly
             Console.WriteLine($"Consumer subscribed to: {message.Topic}");
-            var buffer = LZ4MessagePackSerializer.Serialize<IMessage>(new SubscriptionResponse {TestMessage = $"You did it! You subscribed to {message.Topic}"});
-            await webSocket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Binary, false,
-                CancellationToken.None);
+            await SendResponse(
+                new SubscriptionResponse {TestMessage = $"You did it! You subscribed to {message.Topic}"}, webSocket);
         }
 
-        private static async Task HandlePublishMessage(MessageContainer messages)
+        private static async Task HandlePublishMessage(MessageContainer messages, WebSocket webSocket)
         {
             //TODO Store the message
             //TODO Respond to publisher that the message is received correctly
             messages.Print();
             MessagesReceived.Inc(messages.Messages.Count);
-            await Task.Run(() => Task.CompletedTask);
+            Messages.Add(messages);
+            Console.WriteLine($"Message added to list");
+            //await SendResponse(new MessageReceived(), webSocket);
+        }
+
+        private static async Task SendResponse(IMessage message, WebSocket webSocket)
+        {
+            await webSocket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize(message)), WebSocketMessageType.Binary, false,
+                CancellationToken.None);
         }
     }
 }
