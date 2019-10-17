@@ -63,8 +63,6 @@ namespace Dream_Stream
             var client = env.IsDevelopment() ? new EtcdClient("http://localhost") : new EtcdClient("http://etcd");
             var me = Guid.NewGuid().ToString();
 
-            
-            await Task.Delay(10*1000);
             var brokerTable = new BrokerTable(client);
             await brokerTable.ImHere();
 
