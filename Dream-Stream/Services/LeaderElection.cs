@@ -18,21 +18,23 @@ namespace Dream_Stream.Services
         private readonly ProducerTable _producerTable;
         private readonly string _topic;
         private bool _leader;
+        private ConsumerGroupTable _consumerGroupTable;
 
 
-        public EtcdClient Client { get; set; }
+        private readonly EtcdClient _client;
 
         private const string Prefix = "Leader/";
 
         // Inspiration for the leader election have been found here: https://www.sandtable.com/etcd3-leader-election-using-python/
         public LeaderElection(EtcdClient client, string topic, string me)
         {
-            Client = client;
+            _client = client;
             _topic = topic;
             _leaderKey = Prefix + topic;
             _me = me;
-            _producerTable = new ProducerTable(Client);
-            Client.Watch(_leaderKey, SetNewElection);
+            _producerTable = new ProducerTable(_client);
+            _consumerGroupTable = new ConsumerGroupTable(_client);
+            _client.Watch(_leaderKey, SetNewElection);
         }
 
         private async void SetNewElection(WatchResponse watchResponse)
@@ -42,7 +44,7 @@ namespace Dream_Stream.Services
 
         public async Task Election()
         {
-            var (leader, lease) = await ElectLeader(Client, _me);
+            var (leader, lease) = await ElectLeader(_client, _me);
             _leader = leader;
             if (_leader)
             {
@@ -51,15 +53,19 @@ namespace Dream_Stream.Services
                 while (_leader)
                 {
                     Thread.Sleep(500);
-                    Client.LeaseKeepAlive(new LeaseKeepAliveRequest { ID = lease.ID }, HandleLeaseKeepAliveRequest, CancellationToken.None);
+                    _client.LeaseKeepAlive(new LeaseKeepAliveRequest { ID = lease.ID }, HandleLeaseKeepAliveRequest, CancellationToken.None);
                 }
             }
         }
 
         private async void LeaderHandler()
         {
-            await _producerTable.HandleRepartitioning(_topic);
-            _producerTable.SetupWatch(_topic);
+            var partitionCount = await TopicList.PartitionCount(_client, _topic);
+            await _producerTable.HandleRepartitioning(_topic, partitionCount);
+            _producerTable.SetupWatch(_topic, partitionCount);
+
+            _consumerGroupTable.HandlePartitionDistribution(_topic, partitionCount);
+            _consumerGroupTable.SetupWatch(_topic, partitionCount);
         }
 
         private void HandleLeaseKeepAliveRequest(LeaseKeepAliveResponse response)

@@ -18,34 +18,33 @@ namespace Dream_Stream.Services
             _client = client;
         }
 
-        public void SetupWatch(string topic)
+        public void SetupWatch(string topic, int partitionCount)
         {
             _topic = topic;
-            _client.WatchRange(BrokerTable.Prefix, async x => await HandleBrokersChanging(x));
+            _client.WatchRange(BrokerTable.Prefix, async x => await HandleBrokersChanging(x, partitionCount));
         }
 
-        public async Task HandleRepartitioning(string topic)
+        public async Task HandleRepartitioning(string topic, int partitionCount)
         {
             Console.WriteLine($"Handling repartitioning for {topic}");
             var producerTablePrefixKey = Prefix + topic + "/";
-            var wantedPartitionCount = await GetWantedPartitionCount(topic);
             var brokersObject = await GetBrokersObject();
-            var wantedPartitionCountPrBroker = (wantedPartitionCount + brokersObject.Count - 1) / brokersObject.Count;
-            var (partitionsCorrectlyPlaced, brokerPartitionCount) = await GetPartitionsToRepartition(producerTablePrefixKey,
-                brokersObject, wantedPartitionCountPrBroker, wantedPartitionCount);
-            await Repartition(brokerPartitionCount, partitionsCorrectlyPlaced, wantedPartitionCountPrBroker, brokersObject,
+            var partitionCountPrBroker = (partitionCount + brokersObject.Count - 1) / brokersObject.Count;
+            var (partitionsCorrectlyPlaced, brokerPartitionCount) = await PartitionsToRepartition(producerTablePrefixKey,
+                brokersObject, partitionCountPrBroker, partitionCount);
+            await Repartition(brokerPartitionCount, partitionsCorrectlyPlaced, partitionCountPrBroker, brokersObject,
                 producerTablePrefixKey);
         }
 
         private async Task Repartition(IList<int> brokerPartitionCount, IReadOnlyList<bool> partitionsCorrectlyPlaced,
-            int wantedPartitionCountPrBroker, BrokersObject brokersObject, string producerTablePrefixKey)
+            int partitionCountPrBroker, BrokersObject brokersObject, string producerTablePrefixKey)
         {
             var brokerNumber = brokerPartitionCount.Count - 1;
             for (var partitionNumber = 0; partitionNumber < partitionsCorrectlyPlaced.Count; partitionNumber++)
             {
                 // If Partition Is Not Correctly placed
                 if (partitionsCorrectlyPlaced[partitionNumber]) continue;
-                if (brokersObject.BrokerExistArray[brokerNumber] && brokerPartitionCount[brokerNumber] < wantedPartitionCountPrBroker)
+                if (brokersObject.BrokerExistArray[brokerNumber] && brokerPartitionCount[brokerNumber] < partitionCountPrBroker)
                 {
                     await UpdateBrokerForPartition(brokersObject, brokerNumber, partitionNumber, producerTablePrefixKey);
                     //Console.WriteLine($"Updated broker {brokerNumber} Partition {partitionNumber}");
@@ -69,18 +68,18 @@ namespace Dream_Stream.Services
             await _client.PutAsync(key, value);
         }
 
-        private async Task<(bool[] partitionsCorrectlyPlaced, int[] brokerPartitionCount)> GetPartitionsToRepartition(
-            string producerTablePrefixKey, BrokersObject brokersObject, int wantedPartitionCountPrBroker,
-            int wantedPartitionCount)
+        private async Task<(bool[] partitionsCorrectlyPlaced, int[] brokerPartitionCount)> PartitionsToRepartition(
+            string producerTablePrefixKey, BrokersObject brokersObject, int partitionCountPrBroker,
+            int partitionCount)
         {
             var rangeResponseTopic = await _client.GetRangeAsync(producerTablePrefixKey);
-            var partitionsCorrectlyPlaced = new bool[wantedPartitionCount];
-            var brokerPartitionCount = PopulatePartitionsToRepartition(rangeResponseTopic, producerTablePrefixKey, brokersObject, wantedPartitionCountPrBroker, ref partitionsCorrectlyPlaced);
+            var partitionsCorrectlyPlaced = new bool[partitionCount];
+            var brokerPartitionCount = PopulatePartitionsToRepartition(rangeResponseTopic, producerTablePrefixKey, brokersObject, partitionCountPrBroker, ref partitionsCorrectlyPlaced);
             return (partitionsCorrectlyPlaced, brokerPartitionCount);
         }
 
         private static int[] PopulatePartitionsToRepartition(RangeResponse rangeResponseTopic, string producerTablePrefixKey,
-            BrokersObject brokersObject, int wantedPartitionCountPrBroker, ref bool[] partitionsCorrectlyPlaced)
+            BrokersObject brokersObject, int partitionCountPrBroker, ref bool[] partitionsCorrectlyPlaced)
         {
             var brokerPartitionCount = new int[brokersObject.BrokerExistArray.Length];
             foreach (var keyValue in rangeResponseTopic.Kvs)
@@ -91,7 +90,7 @@ namespace Dream_Stream.Services
                 int.TryParse(brokerNumberString, out var brokerNumber);
 
                 // if broker is alive and it does not have more than the wanted partitions
-                if (brokersObject.BrokerExistArray[brokerNumber] && brokerPartitionCount[brokerNumber] < wantedPartitionCountPrBroker)
+                if (brokersObject.BrokerExistArray[brokerNumber] && brokerPartitionCount[brokerNumber] < partitionCountPrBroker)
                 {
                     brokerPartitionCount[brokerNumber]++;
                     int.TryParse(partitionString, out var partition);
@@ -124,22 +123,11 @@ namespace Dream_Stream.Services
             return new BrokersObject { BrokerExistArray = brokerArray, Count = count, Name = brokerName };
         }
 
-        private async Task<int> GetWantedPartitionCount(string topic)
-        {
-            var rangeResponseTopicList = await _client.GetAsync(TopicList.Prefix + topic);
-            if (rangeResponseTopicList.Kvs.Count == 0)
-            {
-                // Remove Topic from everywhere!
-            }
 
-            var wantedPartitionCountString = rangeResponseTopicList.Kvs.First().Value.ToStringUtf8();
-            int.TryParse(wantedPartitionCountString, out var wantedPartitionCount);
-            return wantedPartitionCount;
-        }
 
-        private async Task HandleBrokersChanging(WatchResponse watchResponse)
+        private async Task HandleBrokersChanging(WatchResponse watchResponse, int partitionCount)
         {
-            if (watchResponse.Events.Count != 0) await HandleRepartitioning(_topic);
+            if (watchResponse.Events.Count != 0) await HandleRepartitioning(_topic, partitionCount);
         }
     }
 

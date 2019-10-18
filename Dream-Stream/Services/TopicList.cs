@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using dotnet_etcd;
 using Etcdserverpb;
@@ -49,6 +50,19 @@ namespace Dream_Stream.Services
             var leaderElection = new LeaderElection(_client, topic, _me);
             await leaderElection.Election();
             Console.WriteLine($"Handling Election for {keyValue.Key.ToStringUtf8()}:{keyValue.Value.ToStringUtf8()}");
+        }
+
+        public static async Task<int> PartitionCount(EtcdClient client, string topic)
+        {
+            var rangeResponseTopicList = await client.GetAsync(Prefix + topic);
+            if (rangeResponseTopicList.Kvs.Count == 0)
+            {
+                return 0;
+            }
+
+            var wantedPartitionCountString = rangeResponseTopicList.Kvs.First().Value.ToStringUtf8();
+            int.TryParse(wantedPartitionCountString, out var wantedPartitionCount);
+            return wantedPartitionCount;
         }
     }
 }
