@@ -1,4 +1,6 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using dotnet_etcd;
 using Dream_Stream.Services;
 using Microsoft.AspNetCore.Builder;
@@ -61,6 +63,7 @@ namespace Dream_Stream
             var client = env.IsDevelopment() ? new EtcdClient("http://localhost") : new EtcdClient("http://etcd");
             var me = Guid.NewGuid().ToString();
 
+            await Task.Delay(1*1000);
             var brokerTable = new BrokerTable(client);
             await brokerTable.ImHere();
 
