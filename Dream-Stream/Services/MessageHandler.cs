@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.WebSockets;
@@ -18,7 +19,7 @@ namespace Dream_Stream.Services
             LabelNames = new []{"Topic"}
         });
         private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.");
-        private static readonly List<MessageContainer> Messages = new List<MessageContainer>();
+        private static readonly BlockingCollection<MessageContainer> Messages = new BlockingCollection<MessageContainer>();
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
@@ -70,9 +71,8 @@ namespace Dream_Stream.Services
                 await SendResponse(new NoNewMessage(), webSocket);
                 return;
             }
-            
-            await SendResponse(Messages[0], webSocket);
-            Messages.RemoveAt(0);
+
+            SendResponse(Messages.Take(), webSocket);
         }
 
         private static async Task HandleSubscriptionRequest(SubscriptionRequest message, WebSocket webSocket)
@@ -87,10 +87,9 @@ namespace Dream_Stream.Services
         {
             //TODO Store the message
             //TODO Respond to publisher that the message is received correctly
-            messages.Print();
+            //messages.Print();
             MessagesReceived.Inc(messages.Messages.Count);
             Messages.Add(messages);
-            Console.WriteLine($"Message added to list");
             //await SendResponse(new MessageReceived(), webSocket);
         }
 
