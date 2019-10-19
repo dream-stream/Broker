@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using dotnet_etcd;
+using Etcdserverpb;
+using Google.Protobuf;
 using Mvccpb;
 
 namespace Dream_Stream.Services
@@ -47,7 +48,13 @@ namespace Dream_Stream.Services
                 foreach (var (consumerId, partitionList) in consumerIdPartitionList)
                 {
                     var partitionListString = string.Join(",", partitionList);
-                    await _client.PutAsync($"{prefixKey}{consumerGroup}/{consumerId}", partitionListString);
+                    var key = $"{prefixKey}{consumerGroup}/{consumerId}";
+                    await _client.PutAsync(new PutRequest
+                    {
+                        IgnoreLease = true,
+                        Key = ByteString.CopyFromUtf8(key),
+                        Value = ByteString.CopyFromUtf8(partitionListString)
+                    });
                 }
             }
         }
