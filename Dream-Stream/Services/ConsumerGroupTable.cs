@@ -45,24 +45,26 @@ namespace Dream_Stream.Services
             return consumerGroupDict;
         }
 
-        private static Dictionary<string, List<int>> GetPartitionDistributionList(int partitionCount, List<string> consumerIds)
+        public static Dictionary<string, List<int>> GetPartitionDistributionList(int partitionCount, List<string> consumerIds)
         {
             var consumerIdPartitionList = new Dictionary<string, List<int>>();
             var partitionsPrConsumer = (partitionCount + consumerIds.Count - 1) / consumerIds.Count;
 
             var consumerIdIndex = 0;
             var currentPartitionCount = 0;
+            //TODO !!!!
+            // This is not a optimal split, since this does not split equally, an example of this is with 12 partitions
+            // and 5 consumers then the split will be 3,3,3,3,0, because each broker is allowed to keep 3 brokers
+            // This is worse than it looks because the logic is that if there has been not added anything it will keep trying.
             for (var partition = 0; partition < partitionCount; partition++)
             {
-                if (++currentPartitionCount >= partitionsPrConsumer)
-                {
-                    consumerIdIndex++;
-                    currentPartitionCount = 0;
-                }
-
                 if (consumerIdPartitionList.TryGetValue(consumerIds[consumerIdIndex], out var partitionList))
                     partitionList.Add(partition);
                 else consumerIdPartitionList.Add(consumerIds[consumerIdIndex], new List<int> {partition});
+
+                if (++currentPartitionCount < partitionsPrConsumer) continue;
+                consumerIdIndex++;
+                currentPartitionCount = 0;
             }
 
             return consumerIdPartitionList;
