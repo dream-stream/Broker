@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using dotnet_etcd;
 using Etcdserverpb;
 using Google.Protobuf;
@@ -21,41 +22,64 @@ namespace Dream_Stream.Services
         {
             var prefixKey = $"{Prefix}{topic}/";
             var consumerGroupRangeVal = await _client.GetRangeValAsync(prefixKey);
+            var consumerGroupDict = GetConsumerGroupDictionary(consumerGroupRangeVal, prefixKey);
+            foreach (var (consumerGroup, consumerIds) in consumerGroupDict)
+            {
+                var partitionDistributionList = GetPartitionDistributionList(partitionCount, consumerIds);
+                await UpdatePartitionsOnEtcd(partitionDistributionList, prefixKey, consumerGroup);
+            }
+        }
+
+        private static Dictionary<string, List<string>> GetConsumerGroupDictionary(IDictionary<string, string> consumerGroupRangeVal, string prefixKey)
+        {
             var consumerGroupDict = new Dictionary<string, List<string>>();
             foreach (var (key, _) in consumerGroupRangeVal)
             {
                 var consumerGroupAndConsumerId = key.Substring(prefixKey.Length).Split('/');
                 var consumerGroup = consumerGroupAndConsumerId[0];
                 var consumerId = consumerGroupAndConsumerId[1];
-                if(consumerGroupDict.TryGetValue(consumerGroup, out var list)) list.Add(consumerId);
-                else consumerGroupDict.Add(consumerGroup, new List<string>{consumerId});
+                if (consumerGroupDict.TryGetValue(consumerGroup, out var list)) list.Add(consumerId);
+                else consumerGroupDict.Add(consumerGroup, new List<string> {consumerId});
             }
 
-            foreach (var (consumerGroup, consumerIds) in consumerGroupDict)
+            return consumerGroupDict;
+        }
+
+        private static Dictionary<string, List<int>> GetPartitionDistributionList(int partitionCount, List<string> consumerIds)
+        {
+            var consumerIdPartitionList = new Dictionary<string, List<int>>();
+            var partitionsPrConsumer = (partitionCount + consumerIds.Count - 1) / consumerIds.Count;
+
+            var consumerIdIndex = 0;
+            var currentPartitionCount = 0;
+            for (var partition = 0; partition < partitionCount; partition++)
             {
-                var consumerIdPartitionList = new Dictionary<string, List<int>>();
-                var partitionsPrConsumer = (partitionCount + consumerIds.Count - 1) / consumerIds.Count;
-
-                var consumerIdIndex = 0;
-                for (var partition = 0; partition < partitionCount; partition++)
+                if (currentPartitionCount++ >= partitionsPrConsumer)
                 {
-                    if (consumerIdIndex >= partitionsPrConsumer) consumerIdIndex++;
-
-                    if (consumerIdPartitionList.TryGetValue(consumerIds[consumerIdIndex], out var partitionList)) partitionList.Add(partition);
-                    else consumerIdPartitionList.Add(consumerIds[consumerIdIndex], new List<int> { partition });
+                    consumerIdIndex++;
+                    currentPartitionCount = 0;
                 }
 
-                foreach (var (consumerId, partitionList) in consumerIdPartitionList)
+                if (consumerIdPartitionList.TryGetValue(consumerIds[consumerIdIndex], out var partitionList))
+                    partitionList.Add(partition);
+                else consumerIdPartitionList.Add(consumerIds[consumerIdIndex], new List<int> {partition});
+            }
+
+            return consumerIdPartitionList;
+        }
+
+        private async Task UpdatePartitionsOnEtcd(Dictionary<string, List<int>> consumerIdPartitionList, string prefixKey, string consumerGroup)
+        {
+            foreach (var (consumerId, partitionList) in consumerIdPartitionList)
+            {
+                var partitionListString = string.Join(",", partitionList);
+                var key = $"{prefixKey}{consumerGroup}/{consumerId}";
+                await _client.PutAsync(new PutRequest
                 {
-                    var partitionListString = string.Join(",", partitionList);
-                    var key = $"{prefixKey}{consumerGroup}/{consumerId}";
-                    await _client.PutAsync(new PutRequest
-                    {
-                        IgnoreLease = true,
-                        Key = ByteString.CopyFromUtf8(key),
-                        Value = ByteString.CopyFromUtf8(partitionListString)
-                    });
-                }
+                    IgnoreLease = true,
+                    Key = ByteString.CopyFromUtf8(key),
+                    Value = ByteString.CopyFromUtf8(partitionListString)
+                });
             }
         }
 
