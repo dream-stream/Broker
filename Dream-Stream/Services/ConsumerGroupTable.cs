@@ -54,7 +54,7 @@ namespace Dream_Stream.Services
             var currentPartitionCount = 0;
             for (var partition = 0; partition < partitionCount; partition++)
             {
-                if (currentPartitionCount++ > partitionsPrConsumer)
+                if (currentPartitionCount++ >= partitionsPrConsumer)
                 {
                     consumerIdIndex++;
                     currentPartitionCount = 0;
