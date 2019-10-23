@@ -29,7 +29,7 @@ stages:
           $(tag)
 - stage: Release
   jobs:  
-  - deployment: Release-Anders
+  - deployment: ReleaseAnders
     pool: Anders
     environment: 'test'
     strategy:
@@ -43,7 +43,7 @@ stages:
               kubernetesServiceConnection: 'KubeAnders'
               manifests: manifests/*
               containers: '$(image):$(tag)'
-  - deployment: Release-Nicklas
+  - deployment: ReleaseNicklas
     pool: Nicklas
     environment: 'test'
     strategy:
