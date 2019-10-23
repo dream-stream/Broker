@@ -27,6 +27,10 @@ stages:
         buildContext: '.'
         tags: |
           $(tag)
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: 'manifests'
+        artifact: 'manifests'
 - stage: Release
   jobs:  
   - deployment: ReleaseAnders
@@ -36,6 +40,11 @@ stages:
       runOnce:
         deploy:
           steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              buildType: 'current'
+              artifact: 'manifests'
+              targetPath: 'manifests'
           - task: KubernetesManifest@0
             inputs:
               action: 'deploy'
@@ -50,6 +59,11 @@ stages:
       runOnce:
         deploy:
           steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              buildType: 'current'
+              artifact: 'manifests'
+              targetPath: 'manifests'
           - task: KubernetesManifest@0
             inputs:
               action: 'deploy'
