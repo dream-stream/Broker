@@ -43,8 +43,6 @@ stages:
               kubernetesServiceConnection: 'KubeAnders'
               manifests: manifests/*
               containers: '$(image):$(tag)'
-- stage: Release
-  jobs:  
   - deployment: Release
     pool: Nicklas
     environment: 'test'
