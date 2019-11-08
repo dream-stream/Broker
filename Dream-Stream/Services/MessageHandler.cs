@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
@@ -20,6 +19,7 @@ namespace Dream_Stream.Services
         });
         private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.");
         private static readonly BlockingCollection<MessageContainer> Messages = new BlockingCollection<MessageContainer>();
+        private static StorageService _storage = new StorageService();
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
@@ -39,11 +39,9 @@ namespace Dream_Stream.Services
                     switch (message)
                     {
                         case MessageContainer msg:
-                            await HandlePublishMessage(msg, webSocket);
+                            await HandlePublishMessage(msg.Header, buffer, webSocket);
                             MessageBatchesReceived.WithLabels(msg.Header.Topic).Inc();
-                            break;
-                        case SubscriptionRequest msg:
-                            await HandleSubscriptionRequest(msg, webSocket);
+                            MessagesReceived.Inc(msg.Messages.Count);
                             break;
                         case MessageRequest msg:
                             await HandleMessageRequest(msg, webSocket);
@@ -65,32 +63,28 @@ namespace Dream_Stream.Services
 
         private static async Task HandleMessageRequest(MessageRequest msg, WebSocket webSocket)
         {
-            //TODO Handle MessageRequest correctly
-            if (Messages.Count == 0)
+            var (messages, length) = _storage.Read(msg.Topic, msg.Partition, msg.OffSet, msg.ReadSize);
+
+            await SendResponse(new MessageRequestResponse
             {
-                await SendResponse(new NoNewMessage(), webSocket);
-                return;
-            }
+                Messages = messages,
+                Offset = length
+            }, webSocket);
 
-            SendResponse(Messages.Take(), webSocket);
+            //if (Messages.Count == 0)
+            //{
+            //    await SendResponse(new NoNewMessage(), webSocket);
+            //    return;
+            //}
+
+            //SendResponse(Messages.Take(), webSocket);
         }
 
-        private static async Task HandleSubscriptionRequest(SubscriptionRequest message, WebSocket webSocket)
+        private static async Task HandlePublishMessage(MessageHeader header, byte[] messages, WebSocket webSocket)
         {
-            //TODO Handle SubRequest correctly
-            Console.WriteLine($"Consumer subscribed to: {message.Topic}");
-            await SendResponse(
-                new SubscriptionResponse {TestMessage = $"You did it! You subscribed to {message.Topic}"}, webSocket);
-        }
-
-        private static async Task HandlePublishMessage(MessageContainer messages, WebSocket webSocket)
-        {
-            //TODO Store the message
-            //TODO Respond to publisher that the message is received correctly
-            //messages.Print();
-            MessagesReceived.Inc(messages.Messages.Count);
-            Messages.Add(messages);
-            //await SendResponse(new MessageReceived(), webSocket);
+            _storage.Store(header.Topic, header.Partition, messages);
+            //Messages.Add(messages);
+            await SendResponse(new MessageReceived(), webSocket);
         }
 
         private static async Task SendResponse(IMessage message, WebSocket webSocket)
