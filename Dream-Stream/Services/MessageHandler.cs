@@ -65,6 +65,12 @@ namespace Dream_Stream.Services
         {
             var (messages, length) = _storage.Read(msg.Topic, msg.Partition, msg.OffSet, msg.ReadSize);
 
+            if (length == 0)
+            {
+                await SendResponse(new NoNewMessage(), webSocket);
+                return;
+            }
+
             await SendResponse(new MessageRequestResponse
             {
                 Messages = messages,
