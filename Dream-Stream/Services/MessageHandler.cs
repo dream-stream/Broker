@@ -19,7 +19,7 @@ namespace Dream_Stream.Services
         });
         private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.");
         private static readonly BlockingCollection<MessageContainer> Messages = new BlockingCollection<MessageContainer>();
-        private static StorageService _storage = new StorageService();
+        private static readonly StorageService Storage = new StorageService();
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
@@ -52,7 +52,7 @@ namespace Dream_Stream.Services
             }
             catch (Exception e)
             {
-                //Console.WriteLine(e);
+                Console.WriteLine(e);
                 Console.WriteLine($"Connection closed");
             }
             finally
@@ -63,7 +63,7 @@ namespace Dream_Stream.Services
 
         private static async Task HandleMessageRequest(MessageRequest msg, WebSocket webSocket)
         {
-            var (messages, length) = _storage.Read(msg.Topic, msg.Partition, msg.OffSet, msg.ReadSize);
+            var (messages, length) = Storage.Read(msg.Topic, msg.Partition, msg.OffSet, msg.ReadSize);
 
             if (length == 0)
             {
@@ -88,7 +88,7 @@ namespace Dream_Stream.Services
 
         private static async Task HandlePublishMessage(MessageHeader header, byte[] messages, WebSocket webSocket)
         {
-            _storage.Store(header.Topic, header.Partition, messages);
+            Storage.Store(header.Topic, header.Partition, messages);
             //Messages.Add(messages);
             await SendResponse(new MessageReceived(), webSocket);
         }
