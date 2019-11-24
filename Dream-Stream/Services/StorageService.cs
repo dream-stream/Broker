@@ -10,7 +10,6 @@ namespace Dream_Stream.Services
     public class StorageService
     {
         private const string BasePath = "/mnt/data";
-        //private const string BasePath = @"C:/temp";
         private static readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
         private static readonly ReaderWriterLockSlim OffsetLock = new ReaderWriterLockSlim();
 
@@ -24,7 +23,6 @@ namespace Dream_Stream.Services
             Lock.EnterWriteLock();
             using var stream = new FileStream(path, FileMode.Append);
             using var writer = new BinaryWriter(stream);
-
             writer.Write(message);
             writer.Write((byte)10);
             writer.Close();
@@ -57,7 +55,7 @@ namespace Dream_Stream.Services
 
         public async Task StoreOffset(string consumerGroup, string topic, int partition, long offset)
         {
-            var path = $@"{BasePath}/{consumerGroup}/{topic}/{partition}.txt";
+            var path = $@"{BasePath}/offsets/{consumerGroup}/{topic}/{partition}.txt";
 
             if (!File.Exists(path))
                 CreateFile(path);
@@ -73,10 +71,10 @@ namespace Dream_Stream.Services
 
         public async Task<long> ReadOffset(string consumerGroup, string topic, int partition)
         {
-            var path = $@"{BasePath}/{consumerGroup}/{topic}/{partition}.txt";
+            var path = $@"{BasePath}/offsets/{consumerGroup}/{topic}/{partition}.txt";
 
             if (!File.Exists(path))
-                CreateFile(path);
+                await StoreOffset(consumerGroup, topic, partition, 0);
 
             Lock.EnterReadLock();
             await using var stream = new FileStream(path, FileMode.Open);

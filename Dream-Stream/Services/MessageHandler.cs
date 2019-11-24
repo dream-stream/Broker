@@ -25,7 +25,7 @@ namespace Dream_Stream.Services
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
-            var buffer = new byte[1024 * 4];
+            var buffer = new byte[1024 * 6];
             WebSocketReceiveResult result = null;
             Console.WriteLine($"Handling message from: {context.Connection.RemoteIpAddress}");
             try
@@ -70,7 +70,7 @@ namespace Dream_Stream.Services
         {
             var offset = await Storage.ReadOffset(request.ConsumerGroup, request.Topic, request.Partition);
 
-            await SendResponse(new OffsetResponse {Offset = offset}, webSocket);
+            await SendResponse(new OffsetResponse { Offset = offset }, webSocket);
         }
 
         private static async Task HandleMessageRequest(MessageRequest msg, WebSocket webSocket)
