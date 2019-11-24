@@ -1,10 +1,12 @@
 ﻿using System;
-using System.Collections.Concurrent;
+//using System.Collections.Concurrent;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Dream_Stream.Models.Messages;
+using Dream_Stream.Models.Messages.ConsumerMessages;
+using Dream_Stream.Models.Messages.ProducerMessages;
 using MessagePack;
 using Microsoft.AspNetCore.Http;
 using Prometheus;
@@ -18,7 +20,7 @@ namespace Dream_Stream.Services
             LabelNames = new []{"Topic"}
         });
         private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.");
-        private static readonly BlockingCollection<MessageContainer> Messages = new BlockingCollection<MessageContainer>();
+        //private static readonly BlockingCollection<MessageContainer> Messages = new BlockingCollection<MessageContainer>();
         private static readonly StorageService Storage = new StorageService();
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
@@ -46,6 +48,9 @@ namespace Dream_Stream.Services
                         case MessageRequest msg:
                             await HandleMessageRequest(msg, webSocket);
                             break;
+                        case OffsetRequest msg:
+                            await HandleOffsetRequest(msg, webSocket);
+                            break;
                     }
 
                 } while (!result.CloseStatus.HasValue);
@@ -53,7 +58,7 @@ namespace Dream_Stream.Services
             catch (Exception e)
             {
                 Console.WriteLine(e);
-                Console.WriteLine($"Connection closed");
+                Console.WriteLine("Connection closed");
             }
             finally
             {
@@ -61,9 +66,19 @@ namespace Dream_Stream.Services
             }
         }
 
+        private static async Task HandleOffsetRequest(OffsetRequest request, WebSocket webSocket)
+        {
+            var offset = await Storage.ReadOffset(request.ConsumerGroup, request.Topic, request.Partition);
+
+            await SendResponse(new OffsetResponse {Offset = offset}, webSocket);
+        }
+
         private static async Task HandleMessageRequest(MessageRequest msg, WebSocket webSocket)
         {
-            var (messages, length) = Storage.Read(msg.Topic, msg.Partition, msg.OffSet, msg.ReadSize);
+            var offsetTask = Storage.StoreOffset(msg.ConsumerGroup, msg.Topic, msg.Partition, msg.OffSet);
+            var readTask = Storage.Read(msg.Topic, msg.Partition, msg.OffSet, msg.ReadSize);
+            await Task.WhenAll(offsetTask, readTask);
+            var (messages, length) = readTask.Result;
 
             if (length == 0)
             {
@@ -88,7 +103,7 @@ namespace Dream_Stream.Services
 
         private static async Task HandlePublishMessage(MessageHeader header, byte[] messages, WebSocket webSocket)
         {
-            Storage.Store(header.Topic, header.Partition, messages);
+            await Storage.Store(header.Topic, header.Partition, messages);
             //Messages.Add(messages);
             await SendResponse(new MessageReceived(), webSocket);
         }

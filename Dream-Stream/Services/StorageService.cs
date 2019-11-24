@@ -3,25 +3,26 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Dream_Stream.Services
 {
     public class StorageService
     {
-        //private const string BasePath = "/mnt/data";
-        private const string BasePath = @"C:/temp";
-        private readonly Semaphore _semaphore = new Semaphore(1, 1);
+        private const string BasePath = "/mnt/data";
+        //private const string BasePath = @"C:/temp";
         private static readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
+        private static readonly ReaderWriterLockSlim OffsetLock = new ReaderWriterLockSlim();
 
-        public void Store(string topic, int partition, byte[] message)
+        public Task Store(string topic, int partition, byte[] message)
         {
-            if (!File.Exists($@"{BasePath}/{topic}/{partition}.txt"))
-            {
-                CreateFile(topic, partition);
-            }
+            var path = $@"{BasePath}/{topic}/{partition}.txt";
+
+            if (!File.Exists(path))
+                CreateFile(path);
 
             Lock.EnterWriteLock();
-            using var stream = new FileStream($@"{BasePath}/{topic}/{partition}.txt", FileMode.Append);
+            using var stream = new FileStream(path, FileMode.Append);
             using var writer = new BinaryWriter(stream);
 
             writer.Write(message);
@@ -29,17 +30,19 @@ namespace Dream_Stream.Services
             writer.Close();
             stream.Close();
             Lock.ExitWriteLock();
+
+            return Task.CompletedTask;
         }
 
-        public (List<byte[]> messages, int length) Read(string topic, int partition, long offset, int amount)
+        public async Task<(List<byte[]> messages, int length)> Read(string topic, int partition, long offset, int amount)
         {
-            if (!File.Exists($@"{BasePath}/{topic}/{partition}.txt"))
-            {
-                CreateFile(topic, partition);
-            }
+            var path = $@"{BasePath}/{topic}/{partition}.txt";
+
+            if (!File.Exists(path))
+                CreateFile(path);
 
             Lock.EnterReadLock();
-            using var stream = new FileStream($@"{BasePath}/{topic}/{partition}.txt", FileMode.Open);
+            await using var stream = new FileStream(path, FileMode.Open);
             stream.Seek(offset, SeekOrigin.Begin);
             using var reader = new BinaryReader(stream);
 
@@ -50,6 +53,42 @@ namespace Dream_Stream.Services
             Lock.ExitReadLock();
 
             return SplitByteRead(buffer);
+        }
+
+        public async Task StoreOffset(string consumerGroup, string topic, int partition, long offset)
+        {
+            var path = $@"{BasePath}/{consumerGroup}/{topic}/{partition}.txt";
+
+            if (!File.Exists(path))
+                CreateFile(path);
+
+            OffsetLock.EnterWriteLock();
+            await using var stream = new FileStream(path, FileMode.OpenOrCreate);
+            await using var writer = new BinaryWriter(stream);
+            writer.Write(offset);
+            writer.Close();
+            stream.Close();
+            OffsetLock.ExitWriteLock();
+        }
+
+        public async Task<long> ReadOffset(string consumerGroup, string topic, int partition)
+        {
+            var path = $@"{BasePath}/{consumerGroup}/{topic}/{partition}.txt";
+
+            if (!File.Exists(path))
+                CreateFile(path);
+
+            Lock.EnterReadLock();
+            await using var stream = new FileStream(path, FileMode.Open);
+            using var reader = new BinaryReader(stream);
+
+            var offset = reader.ReadInt64();
+            reader.Close();
+            stream.Close();
+            Lock.ExitReadLock();
+
+
+            return offset;
         }
 
         private static (List<byte[]> messages, int length) SplitByteRead(byte[] read)
@@ -69,10 +108,11 @@ namespace Dream_Stream.Services
             return (list, start);
         }
 
-        private void CreateFile(string topic, int partition)
+        private void CreateFile(string path)
         {
-            Directory.CreateDirectory($@"{BasePath}/{topic}");
-            var stream = File.Create($@"{BasePath}/{topic}/{partition}.txt");
+            var directories = path.Substring(0, path.LastIndexOf("/", StringComparison.Ordinal));
+            Directory.CreateDirectory(directories);
+            var stream = File.Create(path);
             stream.Close();
         }
     }

@@ -1,6 +1,6 @@
 ﻿using MessagePack;
 
-namespace Dream_Stream.Models.Messages
+namespace Dream_Stream.Models.Messages.ConsumerMessages
 {
     [MessagePackObject]
     public class MessageRequest : IMessage
@@ -13,5 +13,7 @@ namespace Dream_Stream.Models.Messages
         public long OffSet { get; set; }
         [Key(4)]
         public int ReadSize { get; set; }
+        [Key(5)]
+        public string ConsumerGroup { get; set; }
     }
 }

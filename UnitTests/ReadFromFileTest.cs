@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Dream_Stream.Services;
 using MessagePack;
 using Xunit;
@@ -50,24 +51,38 @@ namespace UnitTests
         }
 
         [Fact]
-        public void Read()
+        public async Task Read()
         {
             var message = LZ4MessagePackSerializer.Serialize("Bla Bla test");
 
-            _storage.Store("TestTopic", 3, message);
+            await _storage.Store("TestTopic", 3, message);
 
             _testOutputHelper.WriteLine("---- Iteration 1 ----");
-            var response = _storage.Read("TestTopic", 3, 322, 40);
+            var (messages, offset) = await _storage.Read("TestTopic", 3, 322, 40);
 
-            response.messages.ForEach(item => _testOutputHelper.WriteLine($"msg: {LZ4MessagePackSerializer.Deserialize<string>(item)}"));
-            _testOutputHelper.WriteLine($"offset increase: {response.length}");
+            messages.ForEach(item => _testOutputHelper.WriteLine($"msg: {LZ4MessagePackSerializer.Deserialize<string>(item)}"));
+            _testOutputHelper.WriteLine($"offset increase: {offset}");
 
             _testOutputHelper.WriteLine("---- Iteration 2 ----");
-            var response1 = _storage.Read("TestTopic", 3,  322 + response.length, 40);
+            var (messages2, offset2) = await _storage.Read("TestTopic", 3,  322 + offset, 40);
 
-            response1.messages.ForEach(item => _testOutputHelper.WriteLine($"msg: {LZ4MessagePackSerializer.Deserialize<string>(item)}"));
-            _testOutputHelper.WriteLine($"offset increase: {response1.length}");
-            _testOutputHelper.WriteLine($"offset total: {response1.length + response.length}");
+            messages2.ForEach(item => _testOutputHelper.WriteLine($"msg: {LZ4MessagePackSerializer.Deserialize<string>(item)}"));
+            _testOutputHelper.WriteLine($"offset increase: {offset2}");
+            _testOutputHelper.WriteLine($"offset total: {offset2 + offset}");
+        }
+
+        [Fact]
+        public async Task GetOffset()
+        {
+            const string consumerGroup = "MyGroup";
+            const string topic = "test";
+            const int partition = 2;
+            const long offsetStored = 65939485;
+
+            await _storage.StoreOffset(consumerGroup, topic, partition, offsetStored);
+            var offsetRead = await _storage.ReadOffset(consumerGroup, topic, partition);
+
+            Assert.Equal(offsetStored, offsetRead);
         }
 
 
