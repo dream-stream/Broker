@@ -21,7 +21,7 @@ namespace Dream_Stream.Services
         public BrokerTable(EtcdClient client)
         {
             _client = client;
-            var machineName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" ? "Broker-3" : Environment.MachineName;
+            var machineName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" ? "localhost-0" : Environment.MachineName;
             _broker = ByteString.CopyFromUtf8(machineName);
             _key = ByteString.CopyFromUtf8(Prefix + machineName);
         }
