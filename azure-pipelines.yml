@@ -31,43 +31,43 @@ stages:
       inputs:
         targetPath: 'manifests'
         artifact: 'manifests'
-- stage: Release
-  jobs:  
-  - deployment: ReleaseAnders
-    pool: Anders
-    environment: 'test'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              buildType: 'current'
-              artifact: 'manifests'
-              targetPath: 'manifests'
-          - task: KubernetesManifest@0
-            inputs:
-              action: 'deploy'
-              namespace: default
-              kubernetesServiceConnection: 'KubeAnders'
-              manifests: manifests/*
-              containers: '$(image):$(tag)'
-  - deployment: ReleaseNicklas
-    pool: Nicklas
-    environment: 'test'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              buildType: 'current'
-              artifact: 'manifests'
-              targetPath: 'manifests'
-          - task: KubernetesManifest@0
-            inputs:
-              action: 'deploy'
-              namespace: default
-              kubernetesServiceConnection: 'KubeNicklas'
-              manifests: manifests/*
-              containers: '$(image):$(tag)'
+# - stage: Release
+  # jobs:  
+  # - deployment: ReleaseAnders
+    # pool: Anders
+    # environment: 'test'
+    # strategy:
+      # runOnce:
+        # deploy:
+          # steps:
+          # - task: DownloadPipelineArtifact@2
+            # inputs:
+              # buildType: 'current'
+              # artifact: 'manifests'
+              # targetPath: 'manifests'
+          # - task: KubernetesManifest@0
+            # inputs:
+              # action: 'deploy'
+              # namespace: default
+              # kubernetesServiceConnection: 'KubeAnders'
+              # manifests: manifests/*
+              # containers: '$(image):$(tag)'
+  # - deployment: ReleaseNicklas
+    # pool: Nicklas
+    # environment: 'test'
+    # strategy:
+      # runOnce:
+        # deploy:
+          # steps:
+          # - task: DownloadPipelineArtifact@2
+            # inputs:
+              # buildType: 'current'
+              # artifact: 'manifests'
+              # targetPath: 'manifests'
+          # - task: KubernetesManifest@0
+            # inputs:
+              # action: 'deploy'
+              # namespace: default
+              # kubernetesServiceConnection: 'KubeNicklas'
+              # manifests: manifests/*
+              # containers: '$(image):$(tag)'
