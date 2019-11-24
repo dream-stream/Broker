@@ -32,5 +32,17 @@ namespace UnitTests
             var partitionDistributionList = ConsumerGroupTable.GetPartitionDistributionList(12, list);
             foreach (var keyValuePair in partitionDistributionList) {Assert.InRange(keyValuePair.Value.Count ,0 ,3);}
         }
+
+        [Fact]
+        public void GetPartitionDistributionList_12Partitions5Consumers_33222Split()
+        {
+            var list = new List<string> { "1", "2", "3", "4", "5" };
+            var partitionDistributionList = ConsumerGroupTable.GetPartitionDistributionList(12, list);
+
+            for (var i = 0; i < partitionDistributionList.Count; i++)
+            {
+                Assert.Equal(partitionDistributionList[list[i]].Count, i < 2 ? 3 : 2);
+            }
+        }
     }
 }
