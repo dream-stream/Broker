@@ -35,13 +35,15 @@ namespace Dream_Stream.Services
                     result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                     if (result.CloseStatus.HasValue) break;
 
+                    var buf = buffer.Take(result.Count).ToArray();
+
                     var message =
-                        LZ4MessagePackSerializer.Deserialize<IMessage>(buffer.Take(result.Count).ToArray());
+                        LZ4MessagePackSerializer.Deserialize<IMessage>(buf);
 
                     switch (message)
                     {
                         case MessageContainer msg:
-                            await HandlePublishMessage(msg.Header, buffer, webSocket);
+                            await HandlePublishMessage(msg.Header, buf, webSocket);
                             MessageBatchesReceived.WithLabels(msg.Header.Topic).Inc();
                             MessagesReceived.Inc(msg.Messages.Count);
                             break;

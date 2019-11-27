@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Dream_Stream.Models.Messages;
+using MessagePack;
 
 namespace Dream_Stream.Services
 {
@@ -24,7 +26,6 @@ namespace Dream_Stream.Services
             using var stream = new FileStream(path, FileMode.Append);
             using var writer = new BinaryWriter(stream);
             writer.Write(message);
-            writer.Write((byte)10);
             writer.Close();
             stream.Close();
             Lock.ExitWriteLock();
@@ -89,18 +90,30 @@ namespace Dream_Stream.Services
             return offset;
         }
 
-        private static (List<byte[]> messages, int length) SplitByteRead(byte[] read)
+        private static (List<byte[]> messages, int length) SplitByteRead(IReadOnlyList<byte> read)
         {
             var list = new List<byte[]>();
-            var indexOfEndMessage = Array.LastIndexOf(read, (byte) 10);
-            var messages = read.Take(indexOfEndMessage + 1).ToArray();
+            var indexOfEndMessage = 0;
+
+            for (var i = read.Count - 1; i >= 0; i--)
+            {
+                if (read[i] <= 10 && read[i - 1] == 0 && read[i - 2] == 0 && read[i - 3] == 201)
+                {
+                    indexOfEndMessage = i - 2;
+                    break;
+                }
+            }
+            
+            var messages = read.Take(indexOfEndMessage).ToArray();
 
             var start = 0;
-            for (var i = 0; i < messages.Length; i++)
+            for (var i = 3; i < messages.Length; i++)
             {
-                if (messages[i] != 10) continue;
-                list.Add(messages.Skip(start).Take(i - start).ToArray());
-                start = i+1;
+                if (read[i] == 201 && read[i + 1] == 0 && read[i + 2] == 0 && read[i + 3] <= 10)
+                {
+                    list.Add(messages.Skip(start).Take(i - start).ToArray());
+                    start = i;
+                }
             }
 
             return (list, start);
