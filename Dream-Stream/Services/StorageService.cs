@@ -99,7 +99,7 @@ namespace Dream_Stream.Services
             {
                 if (read[i] <= 10 && read[i - 1] == 0 && read[i - 2] == 0 && read[i - 3] == 201)
                 {
-                    indexOfEndMessage = i - 2;
+                    indexOfEndMessage = i - 3;
                     break;
                 }
             }
@@ -114,6 +114,11 @@ namespace Dream_Stream.Services
                     list.Add(messages.Skip(start).Take(i - start).ToArray());
                     start = i;
                 }
+            }
+
+            if (list.Count == 0)
+            {
+                list.Add(messages);
             }
 
             return (list, start);
