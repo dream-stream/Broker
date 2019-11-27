@@ -95,7 +95,7 @@ namespace Dream_Stream.Services
             var list = new List<byte[]>();
             var indexOfEndMessage = 0;
 
-            for (var i = read.Count - 1; i >= 0; i--)
+            for (var i = read.Count - 1; i >= 3; i--)
             {
                 if (read[i] <= 10 && read[i - 1] == 0 && read[i - 2] == 0 && read[i - 3] == 201)
                 {
@@ -107,7 +107,7 @@ namespace Dream_Stream.Services
             var messages = read.Take(indexOfEndMessage).ToArray();
 
             var start = 0;
-            for (var i = 3; i < messages.Length; i++)
+            for (var i = 3; i < messages.Length - 3; i++)
             {
                 if (read[i] == 201 && read[i + 1] == 0 && read[i + 2] == 0 && read[i + 3] <= 10)
                 {
