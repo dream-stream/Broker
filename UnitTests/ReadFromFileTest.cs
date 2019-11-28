@@ -86,6 +86,19 @@ namespace UnitTests
         }
 
 
+        [Fact]
+        public async Task ReadFromPartition()
+        {
+            const string consumerGroup = "Anders-Is-A-Noob";
+            const string topic = "Topic3";
+            const int partition = 8;
+
+            var (messages, length) = await _storage.Read(topic, partition, 0, 6000);
+
+
+        }
+
+
 
 
 
