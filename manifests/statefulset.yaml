@@ -16,7 +16,14 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: broker
-        image: dreamstream/broker:a18
+        image: dreamstream/broker:164
         ports:
         - containerPort: 80
           name: broker
+        env:
+        - name: ASPNETCORE_URLS
+          value: "http://*:80"
+
+
+
+          
