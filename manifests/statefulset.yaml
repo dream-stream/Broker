@@ -20,3 +20,22 @@ spec:
         ports:
         - containerPort: 80
           name: broker
+        volumeMounts:
+        - name: file-writing
+          mountPath: /mnt/data
+      volumes:
+      - name: file-writing
+        persistentVolumeClaim:
+          claimName: broker-claim
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: broker-claim
+spec:
+  storageClassName: "nfs"
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 3Gi

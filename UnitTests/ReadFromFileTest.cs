@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Dream_Stream.Models.Messages;
+using Dream_Stream.Models.Messages.ConsumerMessages;
 using Dream_Stream.Services;
 using MessagePack;
 using Xunit;
@@ -91,10 +94,22 @@ namespace UnitTests
         {
             const string consumerGroup = "Anders-Is-A-Noob";
             const string topic = "Topic3";
-            const int partition = 8;
+            const int partition = 4;
+            var list = new List<MessageContainer>();
+            var list1 = new List<MessageContainer>();
 
             var (messages, length) = await _storage.Read(topic, partition, 0, 6000);
+            var (messages1, length1) = await _storage.Read(topic, partition, length, 6000);
 
+            foreach (var message in messages)
+            {
+                list.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer); 
+            }
+
+            foreach (var message in messages1)
+            {
+                list1.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
+            }
 
         }
 
