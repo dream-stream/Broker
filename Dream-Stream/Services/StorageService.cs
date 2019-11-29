@@ -63,14 +63,12 @@ namespace Dream_Stream.Services
             var buffer = new byte[amount];
             await Task.Delay(1000);
 
-            Lock.EnterReadLock();
             if (PartitionFiles.TryGetValue(path + consumerGroup, out var stream))
             {
                 stream.stream.Seek(offset, SeekOrigin.Begin);
                 stream.stream.Read(buffer, 0, amount);
                 stream.timer.Change(1000, 1000);
             }
-            Lock.ExitReadLock();
 
             return SplitByteRead(buffer);
         }
@@ -112,14 +110,12 @@ namespace Dream_Stream.Services
                 await StoreOffset(consumerGroup, topic, partition, 0);
 
             var buffer = new byte[8]; //long = 64 bit => 64 bit = 8 bytes
-            Lock.EnterReadLock();
             if (PartitionFiles.TryGetValue(path, out var stream))
             {
                 stream.stream.Seek(0, SeekOrigin.Begin);
                 stream.stream.Read(buffer, 0, 8);
                 stream.timer.Change(1000, 1000);
             }
-            Lock.EnterReadLock();
 
             var offset = long.Parse(Encoding.ASCII.GetString(buffer));
             
