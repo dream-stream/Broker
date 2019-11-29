@@ -26,7 +26,7 @@ namespace UnitTests
             _testOutputHelper = testOutputHelper;
         }
 
-        private const string FilePath = @"C:\temp\testfile.txt";
+        private const string FilePath = @"C:\mnt\data\Topic3";
 
         [Fact]
         public void ReadSpecificLineFromFileUsingLinq()
@@ -113,6 +113,36 @@ namespace UnitTests
                 list1.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
             }
 
+        }
+
+        [Fact]
+        public async Task ConsumePartition()
+        {
+            const string consumerGroup = "Anders-Is-A-Noob";
+            const string topic = "Topic3";
+            const int partition = 4;
+            var list = new List<MessageContainer>();
+            var length = 0;
+
+            try
+            {
+                while (true)
+                {
+                    var (messages, length1) = await _storage.Read(consumerGroup, topic, partition, length, 6000);
+                    length += length1;
+                    if (length1 == 0) break;
+
+                    foreach (var message in messages)
+                    {
+                        list.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                _testOutputHelper.WriteLine(e.ToString());
+                throw;
+            }
         }
 
         [Fact]

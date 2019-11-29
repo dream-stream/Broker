@@ -62,7 +62,6 @@ namespace Dream_Stream.Services
                 }, null, 10000, 10000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
 
             var buffer = new byte[amount];
-            await Task.Delay(1000);
 
             if (PartitionFiles.TryGetValue(path + consumerGroup, out var stream))
             {
