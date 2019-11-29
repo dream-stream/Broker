@@ -2,10 +2,9 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Dream_Stream.Models.Messages;
-using MessagePack;
 
 namespace Dream_Stream.Services
 {
@@ -14,41 +13,44 @@ namespace Dream_Stream.Services
         private const string BasePath = "/mnt/data";
         private static readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
         private static readonly ReaderWriterLockSlim OffsetLock = new ReaderWriterLockSlim();
+        private static readonly Dictionary<string, FileStream> PartitionFiles = new Dictionary<string, FileStream>();
 
         public Task Store(string topic, int partition, byte[] message)
         {
             var path = $@"{BasePath}/{topic}/{partition}.txt";
-
             if (!File.Exists(path))
                 CreateFile(path);
+            if (!PartitionFiles.ContainsKey(path))
+                PartitionFiles.TryAdd(path, new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite));
 
             Lock.EnterWriteLock();
-            using var stream = new FileStream(path, FileMode.Append);
-            using var writer = new BinaryWriter(stream);
-            writer.Write(message);
-            writer.Close();
-            stream.Close();
+            if (PartitionFiles.TryGetValue(path, out var stream))
+            {
+                stream.Seek(0, SeekOrigin.End);
+                stream.WriteAsync(message);
+            }
             Lock.ExitWriteLock();
 
             return Task.CompletedTask;
         }
 
-        public async Task<(List<byte[]> messages, int length)> Read(string topic, int partition, long offset, int amount)
+        public async Task<(List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)
         {
             var path = $@"{BasePath}/{topic}/{partition}.txt";
 
             if (!File.Exists(path))
                 CreateFile(path);
-
-            Lock.EnterReadLock();
-            await using var stream = new FileStream(path, FileMode.Open);
-            stream.Seek(offset, SeekOrigin.Begin);
-            using var reader = new BinaryReader(stream);
+            if (!PartitionFiles.ContainsKey(path + consumerGroup))
+                PartitionFiles.TryAdd(path + consumerGroup, new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite));
 
             var buffer = new byte[amount];
-            reader.Read(buffer, 0, amount);
-            reader.Close();
-            stream.Close();
+
+            Lock.EnterReadLock();
+            if (PartitionFiles.TryGetValue(path + consumerGroup, out var stream))
+            {
+                stream.Seek(0, SeekOrigin.Begin);
+                stream.Read(buffer, 0, amount);
+            }
             Lock.ExitReadLock();
 
             return SplitByteRead(buffer);
@@ -60,13 +62,17 @@ namespace Dream_Stream.Services
 
             if (!File.Exists(path))
                 CreateFile(path);
+            if (!PartitionFiles.ContainsKey(path))
+                PartitionFiles.TryAdd(path, new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite));
+
+            var data = Encoding.ASCII.GetBytes($"{offset}");
 
             OffsetLock.EnterWriteLock();
-            await using var stream = new FileStream(path, FileMode.OpenOrCreate);
-            await using var writer = new BinaryWriter(stream);
-            writer.Write(offset);
-            writer.Close();
-            stream.Close();
+            if (PartitionFiles.TryGetValue(path, out var stream))
+            {
+                stream.Seek(0, SeekOrigin.End);
+                stream.Write(data);
+            }
             OffsetLock.ExitWriteLock();
         }
 
@@ -77,16 +83,17 @@ namespace Dream_Stream.Services
             if (!File.Exists(path))
                 await StoreOffset(consumerGroup, topic, partition, 0);
 
+            var buffer = new byte[8]; //long = 64 bit => 64 bit = 8 bytes
             Lock.EnterReadLock();
-            await using var stream = new FileStream(path, FileMode.Open);
-            using var reader = new BinaryReader(stream);
+            if (PartitionFiles.TryGetValue(path, out var stream))
+            {
+                stream.Seek(0, SeekOrigin.Begin);
+                stream.Read(buffer, 0, 8);
+            }
+            Lock.EnterReadLock();
 
-            var offset = reader.ReadInt64();
-            reader.Close();
-            stream.Close();
-            Lock.ExitReadLock();
-
-
+            var offset = long.Parse(Encoding.ASCII.GetString(buffer));
+            
             return offset;
         }
 

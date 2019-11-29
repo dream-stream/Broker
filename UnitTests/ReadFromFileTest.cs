@@ -61,13 +61,13 @@ namespace UnitTests
             await _storage.Store("TestTopic", 3, message);
 
             _testOutputHelper.WriteLine("---- Iteration 1 ----");
-            var (messages, offset) = await _storage.Read("TestTopic", 3, 322, 40);
+            var (messages, offset) = await _storage.Read("MyGroup", "TestTopic", 3, 322, 40);
 
             messages.ForEach(item => _testOutputHelper.WriteLine($"msg: {LZ4MessagePackSerializer.Deserialize<string>(item)}"));
             _testOutputHelper.WriteLine($"offset increase: {offset}");
 
             _testOutputHelper.WriteLine("---- Iteration 2 ----");
-            var (messages2, offset2) = await _storage.Read("TestTopic", 3,  322 + offset, 40);
+            var (messages2, offset2) = await _storage.Read("MyGroup", "TestTopic", 3,  322 + offset, 40);
 
             messages2.ForEach(item => _testOutputHelper.WriteLine($"msg: {LZ4MessagePackSerializer.Deserialize<string>(item)}"));
             _testOutputHelper.WriteLine($"offset increase: {offset2}");
@@ -98,8 +98,8 @@ namespace UnitTests
             var list = new List<MessageContainer>();
             var list1 = new List<MessageContainer>();
 
-            var (messages, length) = await _storage.Read(topic, partition, 0, 6000);
-            var (messages1, length1) = await _storage.Read(topic, partition, length, 6000);
+            var (messages, length) = await _storage.Read(consumerGroup, topic, partition, 0, 6000);
+            var (messages1, length1) = await _storage.Read(consumerGroup, topic, partition, length, 6000);
 
             foreach (var message in messages)
             {
@@ -111,6 +111,29 @@ namespace UnitTests
                 list1.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
             }
 
+        }
+
+        [Fact]
+        public async Task ReadFromPartitionTimed()
+        {
+            const string consumerGroup = "Anders-Is-A-Noob";
+            const string topic = "Topic3";
+            const int partition = 0;
+            var list = new List<MessageContainer>();
+            var list1 = new List<MessageContainer>();
+
+            var (messages, length) = await _storage.Read(consumerGroup, topic, partition, 0, 6000);
+            var (messages1, length1) = await _storage.Read(consumerGroup, topic, partition, length, 6000);
+
+            foreach (var message in messages)
+            {
+                list.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
+            }
+
+            foreach (var message in messages1)
+            {
+                list1.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
+            }
         }
 
 

@@ -78,7 +78,7 @@ namespace Dream_Stream.Services
         private static async Task HandleMessageRequest(MessageRequest msg, WebSocket webSocket)
         {
             var offsetTask = Storage.StoreOffset(msg.ConsumerGroup, msg.Topic, msg.Partition, msg.OffSet);
-            var readTask = Storage.Read(msg.Topic, msg.Partition, msg.OffSet, msg.ReadSize);
+            var readTask = Storage.Read(msg.ConsumerGroup, msg.Topic, msg.Partition, msg.OffSet, msg.ReadSize);
             await Task.WhenAll(offsetTask, readTask);
             var (messages, length) = readTask.Result;
 
