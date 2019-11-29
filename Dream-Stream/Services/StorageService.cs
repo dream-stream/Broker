@@ -97,7 +97,7 @@ namespace Dream_Stream.Services
             OffsetLock.EnterWriteLock();
             if (PartitionFiles.TryGetValue(path, out var stream))
             {
-                stream.stream.Seek(0, SeekOrigin.End);
+                stream.stream.Seek(0, SeekOrigin.Begin);
                 stream.stream.Write(data);
                 stream.timer.Change(10000, 10000);
             }
@@ -119,9 +119,7 @@ namespace Dream_Stream.Services
                 stream.timer.Change(10000, 10000);
             }
 
-            var offset = long.Parse(Encoding.ASCII.GetString(buffer));
-            
-            return offset;
+            return long.TryParse(Encoding.ASCII.GetString(buffer), out var offset) ? offset : 0;
         }
 
         private static (List<byte[]> messages, int length) SplitByteRead(IReadOnlyList<byte> read)

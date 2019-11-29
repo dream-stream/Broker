@@ -16,7 +16,7 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: broker
-        image: dreamstream/broker:171
+        image: dreamstream/broker:172
         ports:
         - containerPort: 80
           name: broker
