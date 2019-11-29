@@ -24,11 +24,12 @@ namespace Dream_Stream.Services
             {
                 PartitionFiles.TryAdd(path, (new Timer(x =>
                 {
-                    PartitionFiles.TryGetValue(path, out var tuple);
+                    if (!PartitionFiles.TryGetValue(path, out var tuple)) return;
                     tuple.stream.Close();
                     tuple.stream.Dispose();
                     PartitionFiles.Remove(path);
-                }, null, 1000, 1000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
+                    tuple.timer.Dispose();
+                }, null, 10000, 10000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
             }
                 
 
@@ -37,7 +38,7 @@ namespace Dream_Stream.Services
             {
                 stream.stream.Seek(0, SeekOrigin.End);
                 stream.stream.WriteAsync(message);
-                stream.timer.Change(1000, 1000);
+                stream.timer.Change(10000, 10000);
             }
             Lock.ExitWriteLock();
 
@@ -58,7 +59,7 @@ namespace Dream_Stream.Services
                     tuple.stream.Dispose();
                     PartitionFiles.Remove(path + consumerGroup);
                     tuple.timer.Dispose();
-                }, null, 1000, 1000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
+                }, null, 10000, 10000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
 
             var buffer = new byte[amount];
             await Task.Delay(1000);
@@ -67,7 +68,7 @@ namespace Dream_Stream.Services
             {
                 stream.stream.Seek(offset, SeekOrigin.Begin);
                 stream.stream.Read(buffer, 0, amount);
-                stream.timer.Change(1000, 1000);
+                stream.timer.Change(10000, 10000);
             }
 
             return SplitByteRead(buffer);
@@ -83,11 +84,12 @@ namespace Dream_Stream.Services
             {
                 PartitionFiles.TryAdd(path, (new Timer(x =>
                 {
-                    PartitionFiles.TryGetValue(path, out var tuple);
+                    if (!PartitionFiles.TryGetValue(path, out var tuple)) return;
                     tuple.stream.Close();
                     tuple.stream.Dispose();
                     PartitionFiles.Remove(path);
-                }, null, 1000, 1000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
+                    tuple.timer.Dispose();
+                }, null, 10000, 10000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
             }
 
             var data = Encoding.ASCII.GetBytes($"{offset}");
@@ -97,7 +99,7 @@ namespace Dream_Stream.Services
             {
                 stream.stream.Seek(0, SeekOrigin.End);
                 stream.stream.Write(data);
-                stream.timer.Change(1000, 1000);
+                stream.timer.Change(10000, 10000);
             }
             OffsetLock.ExitWriteLock();
         }
@@ -114,7 +116,7 @@ namespace Dream_Stream.Services
             {
                 stream.stream.Seek(0, SeekOrigin.Begin);
                 stream.stream.Read(buffer, 0, 8);
-                stream.timer.Change(1000, 1000);
+                stream.timer.Change(10000, 10000);
             }
 
             var offset = long.Parse(Encoding.ASCII.GetString(buffer));
