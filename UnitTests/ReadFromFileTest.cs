@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Dream_Stream.Models.Messages;
 using Dream_Stream.Models.Messages.ConsumerMessages;
@@ -99,6 +100,7 @@ namespace UnitTests
             var list1 = new List<MessageContainer>();
 
             var (messages, length) = await _storage.Read(consumerGroup, topic, partition, 0, 6000);
+            await Task.Delay(3000);
             var (messages1, length1) = await _storage.Read(consumerGroup, topic, partition, length, 6000);
 
             foreach (var message in messages)
@@ -114,29 +116,13 @@ namespace UnitTests
         }
 
         [Fact]
-        public async Task ReadFromPartitionTimed()
+        public async Task TimerTest()
         {
-            const string consumerGroup = "Anders-Is-A-Noob";
-            const string topic = "Topic3";
-            const int partition = 0;
-            var list = new List<MessageContainer>();
-            var list1 = new List<MessageContainer>();
+            var timer = new Timer(x => { _testOutputHelper.WriteLine("Timer expired"); }, null, 100, 100);
+            var timer2 = new Timer(x => { timer.Change(100, 100); }, null, 50, 50);
 
-            var (messages, length) = await _storage.Read(consumerGroup, topic, partition, 0, 6000);
-            var (messages1, length1) = await _storage.Read(consumerGroup, topic, partition, length, 6000);
-
-            foreach (var message in messages)
-            {
-                list.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
-            }
-
-            foreach (var message in messages1)
-            {
-                list1.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
-            }
+            await Task.Delay(1000);
         }
-
-
 
 
 

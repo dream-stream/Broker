@@ -13,7 +13,7 @@ namespace Dream_Stream.Services
         private const string BasePath = "/mnt/data";
         private static readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
         private static readonly ReaderWriterLockSlim OffsetLock = new ReaderWriterLockSlim();
-        private static readonly Dictionary<string, FileStream> PartitionFiles = new Dictionary<string, FileStream>();
+        private static readonly Dictionary<string, (Timer timer, FileStream stream)> PartitionFiles = new Dictionary<string, (Timer timer, FileStream stream)>();
 
         public Task Store(string topic, int partition, byte[] message)
         {
@@ -21,13 +21,23 @@ namespace Dream_Stream.Services
             if (!File.Exists(path))
                 CreateFile(path);
             if (!PartitionFiles.ContainsKey(path))
-                PartitionFiles.TryAdd(path, new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite));
+            {
+                PartitionFiles.TryAdd(path, (new Timer(x =>
+                {
+                    PartitionFiles.TryGetValue(path, out var tuple);
+                    tuple.stream.Close();
+                    tuple.stream.Dispose();
+                    PartitionFiles.Remove(path);
+                }, null, 1000, 1000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
+            }
+                
 
             Lock.EnterWriteLock();
             if (PartitionFiles.TryGetValue(path, out var stream))
             {
-                stream.Seek(0, SeekOrigin.End);
-                stream.WriteAsync(message);
+                stream.stream.Seek(0, SeekOrigin.End);
+                stream.stream.WriteAsync(message);
+                stream.timer.Change(1000, 1000);
             }
             Lock.ExitWriteLock();
 
@@ -41,15 +51,24 @@ namespace Dream_Stream.Services
             if (!File.Exists(path))
                 CreateFile(path);
             if (!PartitionFiles.ContainsKey(path + consumerGroup))
-                PartitionFiles.TryAdd(path + consumerGroup, new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite));
+                PartitionFiles.TryAdd(path + consumerGroup, (new Timer(x =>
+                {
+                    if (!PartitionFiles.TryGetValue(path + consumerGroup, out var tuple)) return;
+                    tuple.stream.Close();
+                    tuple.stream.Dispose();
+                    PartitionFiles.Remove(path + consumerGroup);
+                    tuple.timer.Dispose();
+                }, null, 1000, 1000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
 
             var buffer = new byte[amount];
+            await Task.Delay(1000);
 
             Lock.EnterReadLock();
             if (PartitionFiles.TryGetValue(path + consumerGroup, out var stream))
             {
-                stream.Seek(0, SeekOrigin.Begin);
-                stream.Read(buffer, 0, amount);
+                stream.stream.Seek(offset, SeekOrigin.Begin);
+                stream.stream.Read(buffer, 0, amount);
+                stream.timer.Change(1000, 1000);
             }
             Lock.ExitReadLock();
 
@@ -63,15 +82,24 @@ namespace Dream_Stream.Services
             if (!File.Exists(path))
                 CreateFile(path);
             if (!PartitionFiles.ContainsKey(path))
-                PartitionFiles.TryAdd(path, new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite));
+            {
+                PartitionFiles.TryAdd(path, (new Timer(x =>
+                {
+                    PartitionFiles.TryGetValue(path, out var tuple);
+                    tuple.stream.Close();
+                    tuple.stream.Dispose();
+                    PartitionFiles.Remove(path);
+                }, null, 1000, 1000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
+            }
 
             var data = Encoding.ASCII.GetBytes($"{offset}");
 
             OffsetLock.EnterWriteLock();
             if (PartitionFiles.TryGetValue(path, out var stream))
             {
-                stream.Seek(0, SeekOrigin.End);
-                stream.Write(data);
+                stream.stream.Seek(0, SeekOrigin.End);
+                stream.stream.Write(data);
+                stream.timer.Change(1000, 1000);
             }
             OffsetLock.ExitWriteLock();
         }
@@ -87,8 +115,9 @@ namespace Dream_Stream.Services
             Lock.EnterReadLock();
             if (PartitionFiles.TryGetValue(path, out var stream))
             {
-                stream.Seek(0, SeekOrigin.Begin);
-                stream.Read(buffer, 0, 8);
+                stream.stream.Seek(0, SeekOrigin.Begin);
+                stream.stream.Read(buffer, 0, 8);
+                stream.timer.Change(1000, 1000);
             }
             Lock.EnterReadLock();
 
