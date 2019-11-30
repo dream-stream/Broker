@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Dream_Stream.Services
 {
@@ -14,8 +15,12 @@ namespace Dream_Stream.Services
         private static readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
         private static readonly ReaderWriterLockSlim OffsetLock = new ReaderWriterLockSlim();
         private static readonly Dictionary<string, (Timer timer, FileStream stream)> PartitionFiles = new Dictionary<string, (Timer timer, FileStream stream)>();
+        private readonly MemoryCache _cache = new MemoryCache(new MemoryCacheOptions()
+        {
+            SizeLimit = 1000000000 //1GB
+        });
 
-        public Task Store(string topic, int partition, byte[] message)
+        public async Task<long> Store(string topic, int partition, byte[] message)
         {
             var path = $@"{BasePath}/{topic}/{partition}.txt";
             if (!File.Exists(path))
@@ -23,31 +28,48 @@ namespace Dream_Stream.Services
             if (!PartitionFiles.ContainsKey(path))
             {
                 PartitionFiles.TryAdd(path, (new Timer(x =>
-                {
-                    if (!PartitionFiles.TryGetValue(path, out var tuple)) return;
-                    tuple.stream.Close();
-                    tuple.stream.Dispose();
-                    PartitionFiles.Remove(path);
-                    tuple.timer.Dispose();
-                }, null, 10000, 10000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
+                    {
+                        if (!PartitionFiles.TryGetValue(path, out var tuple)) return;
+                        tuple.stream.Close();
+                        tuple.stream.Dispose();
+                        PartitionFiles.Remove(path);
+                        tuple.timer.Dispose();
+                    }, null, 10000, 10000),
+                    new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
             }
-                
 
+            (Timer timer, FileStream stream) tuple;
+            long offset = 0;
             Lock.EnterWriteLock();
-            if (PartitionFiles.TryGetValue(path, out var stream))
+            if (PartitionFiles.TryGetValue(path, out tuple))
             {
-                stream.stream.Seek(0, SeekOrigin.End);
-                stream.stream.WriteAsync(message);
-                stream.timer.Change(10000, 10000);
+                tuple.stream.Seek(0, SeekOrigin.End);
+                offset = tuple.stream.Position;
+                tuple.stream.WriteAsync(message);
+                tuple.timer.Change(10000, 10000);
             }
+
             Lock.ExitWriteLock();
 
-            return Task.CompletedTask;
+            if (!(tuple.stream is null))
+            {
+                var options = new MemoryCacheEntryOptions()
+                {
+                    Size = message.Length
+                };
+                _cache.Set($"{path}/{offset}", message, options);
+            }
+
+            return offset;
         }
 
         public async Task<(List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)
         {
             var path = $@"{BasePath}/{topic}/{partition}.txt";
+
+            var cacheItems = ReadFromCache(path, offset, amount);
+            if (cacheItems.length != 0)
+                return cacheItems;
 
             if (!File.Exists(path))
                 CreateFile(path);
@@ -61,8 +83,8 @@ namespace Dream_Stream.Services
                     tuple.timer.Dispose();
                 }, null, 10000, 10000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
 
+            
             var buffer = new byte[amount];
-
             if (PartitionFiles.TryGetValue(path + consumerGroup, out var stream))
             {
                 stream.stream.Seek(offset, SeekOrigin.Begin);
@@ -119,6 +141,27 @@ namespace Dream_Stream.Services
             }
 
             return long.TryParse(Encoding.ASCII.GetString(buffer), out var offset) ? offset : 0;
+        }
+
+        private (List<byte[]> messages, int length) ReadFromCache(string path, long offset, int amount)
+        {
+            (List<byte[]> messages, int length) response = (new List<byte[]>(), 0);
+
+            while (true)
+            {
+                if (_cache.TryGetValue($"{path}/{offset}", out byte[] item))
+                {
+                    if (response.length + item.Length > amount) return response;
+
+                    response.messages.Add(item);
+                    response.length += item.Length;
+                    offset += item.Length;
+                }
+                else
+                {
+                    return response;
+                }
+            }
         }
 
         private static (List<byte[]> messages, int length) SplitByteRead(IReadOnlyList<byte> read)

@@ -16,20 +16,20 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: broker
-        image: dreamstream/broker:172
+        image: dreamstream/broker:174
         ports:
         - containerPort: 80
           name: broker
         env:
         - name: ASPNETCORE_URLS
           value: "http://*:80"
-        volumeMounts:
-        - name: file-writing
-          mountPath: /mnt/data
-      volumes:
-      - name: file-writing
-        persistentVolumeClaim:
-          claimName: broker-claim
+      #   volumeMounts:
+      #   - name: file-writing
+      #     mountPath: /mnt/data
+      # volumes:
+      # - name: file-writing
+      #   persistentVolumeClaim:
+      #     claimName: broker-claim
 ---
 kind: PersistentVolumeClaim
 apiVersion: v1

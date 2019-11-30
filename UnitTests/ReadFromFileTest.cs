@@ -59,7 +59,7 @@ namespace UnitTests
         {
             var message = LZ4MessagePackSerializer.Serialize("Bla Bla test");
 
-            await _storage.Store("TestTopic", 3, message);
+            //await _storage.Store("TestTopic", 3, message);
 
             _testOutputHelper.WriteLine("---- Iteration 1 ----");
             var (messages, offset) = await _storage.Read("MyGroup", "TestTopic", 3, 322, 40);
@@ -113,6 +113,43 @@ namespace UnitTests
                 list1.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
             }
 
+        }
+
+        [Fact]
+        public async Task ReadFromCache()
+        {
+            const string consumerGroup = "Anders-Is-A-Noob";
+            const string topic = "Topic3";
+            const int partition = 4;
+            var message = LZ4MessagePackSerializer.Serialize<IMessage>(new MessageContainer()
+            {
+                Header = new MessageHeader
+                {
+                    Partition = partition,
+                    Topic = topic
+                },
+                Messages = new List<Message>
+                {
+                    new Message
+                    {
+                        Address = "Address",
+                        LocationDescription = "Second floor - bathroom",
+                        Measurement = 20.34,
+                        SensorType = "Temperature",
+                        Unit = "C"
+                    }
+                }
+            });
+            var list = new List<MessageContainer>();
+
+
+            var offset = await _storage.Store(topic, partition, message);
+
+            var (messages, length) = await _storage.Read(consumerGroup, topic, partition, offset, 6000);
+            foreach (var msg in messages)
+            {
+                list.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(msg) as MessageContainer);
+            }
         }
 
         [Fact]
