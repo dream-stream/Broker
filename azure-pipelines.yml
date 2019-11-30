@@ -14,7 +14,7 @@ stages:
   jobs:  
   - job: Build
     displayName: Build
-    pool: Anders
+    pool: Default
     steps:
     - task: Docker@2
       displayName: Build an image
