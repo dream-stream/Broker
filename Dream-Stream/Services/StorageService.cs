@@ -65,6 +65,7 @@ namespace Dream_Stream.Services
             }
             catch (Exception e)
             {
+                Lock.ExitWriteLock();
                 Console.WriteLine(e);
                 return 0;
             }
