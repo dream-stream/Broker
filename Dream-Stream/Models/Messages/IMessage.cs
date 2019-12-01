@@ -1,5 +1,6 @@
 ﻿using Dream_Stream.Models.Messages.ConsumerMessages;
 using Dream_Stream.Models.Messages.ProducerMessages;
+using Dream_Stream.Models.Messages.StorageMessages;
 using MessagePack;
 
 namespace Dream_Stream.Models.Messages
@@ -13,6 +14,9 @@ namespace Dream_Stream.Models.Messages
     [Union(6, typeof(NoNewMessage))]
     [Union(7, typeof(MessageReceived))]
     [Union(8, typeof(OffsetResponse))]
+    [Union(9, typeof(StoreRequest))]
+    [Union(10, typeof(ReadResponse))]
+    [Union(12, typeof(StoreOffsetRequest))]
     public interface IMessage
     {
     }

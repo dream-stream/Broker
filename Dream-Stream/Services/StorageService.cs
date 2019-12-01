@@ -9,7 +9,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Dream_Stream.Services
 {
-    public class StorageService
+    public class StorageService : IStorage
     {
         private const string BasePath = "/mnt/data";
         private static readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
@@ -75,6 +75,8 @@ namespace Dream_Stream.Services
         {
             try
             {
+                await StoreOffset(consumerGroup, topic, partition, offset);
+
                 var path = $@"{BasePath}/{topic}/{partition}.txt";
 
                 var cacheItems = ReadFromCache(path, offset, amount);

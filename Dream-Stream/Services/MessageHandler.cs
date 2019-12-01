@@ -1,5 +1,4 @@
 ﻿using System;
-//using System.Collections.Concurrent;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
@@ -20,8 +19,19 @@ namespace Dream_Stream.Services
             LabelNames = new []{"Topic"}
         });
         private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.");
-        //private static readonly BlockingCollection<MessageContainer> Messages = new BlockingCollection<MessageContainer>();
-        private static readonly StorageService Storage = new StorageService();
+        private readonly IStorage _storage;
+
+        public MessageHandler(bool storageMethod)
+        {
+            if (storageMethod)
+            {
+                _storage = new StorageApiService();
+            }
+            else
+            {
+                _storage = new StorageService();
+            }
+        }
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
@@ -68,19 +78,16 @@ namespace Dream_Stream.Services
             }
         }
 
-        private static async Task HandleOffsetRequest(OffsetRequest request, WebSocket webSocket)
+        private async Task HandleOffsetRequest(OffsetRequest request, WebSocket webSocket)
         {
-            var offset = await Storage.ReadOffset(request.ConsumerGroup, request.Topic, request.Partition);
+            var offset = await _storage.ReadOffset(request.ConsumerGroup, request.Topic, request.Partition);
 
             await SendResponse(new OffsetResponse { Offset = offset }, webSocket);
         }
 
-        private static async Task HandleMessageRequest(MessageRequest msg, WebSocket webSocket)
+        private async Task HandleMessageRequest(MessageRequest msg, WebSocket webSocket)
         {
-            var offsetTask = Storage.StoreOffset(msg.ConsumerGroup, msg.Topic, msg.Partition, msg.OffSet);
-            var readTask = Storage.Read(msg.ConsumerGroup, msg.Topic, msg.Partition, msg.OffSet, msg.ReadSize);
-            await Task.WhenAll(offsetTask, readTask);
-            var (messages, length) = readTask.Result;
+            var (messages, length) = await _storage.Read(msg.ConsumerGroup, msg.Topic, msg.Partition, msg.OffSet, msg.ReadSize);
 
             if (length == 0)
             {
@@ -95,13 +102,13 @@ namespace Dream_Stream.Services
             }, webSocket);
         }
 
-        private static async Task HandlePublishMessage(MessageHeader header, byte[] messages, WebSocket webSocket)
+        private async Task HandlePublishMessage(MessageHeader header, byte[] messages, WebSocket webSocket)
         {
             var retryCounter = 0;
-            while (await Storage.Store(header.Topic, header.Partition, messages) == 0 && retryCounter++ < 5)
+            while (await _storage.Store(header.Topic, header.Partition, messages) == 0 && retryCounter++ < 5)
             {
                 Console.WriteLine($"Retrying store message to Topic: {header.Topic}, Partition: {header.Partition}, retry count: {retryCounter}");
-                if (retryCounter == 4)
+                if (retryCounter == 5)
                 {
                     Console.WriteLine($"Failed to store message to Topic: {header.Topic}, Partition: {header.Partition}");
                 }
