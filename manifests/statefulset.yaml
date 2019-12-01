@@ -16,27 +16,27 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: broker
-        image: dreamstream/broker:174
+        image: dreamstream/broker:178
         ports:
         - containerPort: 80
           name: broker
         env:
         - name: ASPNETCORE_URLS
           value: "http://*:80"
-      #   volumeMounts:
-      #   - name: file-writing
-      #     mountPath: /mnt/data
-      # volumes:
-      # - name: file-writing
-      #   persistentVolumeClaim:
-      #     claimName: broker-claim
+        volumeMounts:
+        - name: file-writing
+          mountPath: /mnt/data
+      volumes:
+      - name: file-writing
+        persistentVolumeClaim:
+          claimName: broker-claim
 ---
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: broker-claim
 spec:
-  storageClassName: "nfs"
+  storageClassName: csi-cephfs
   accessModes:
     - ReadWriteMany
   resources:

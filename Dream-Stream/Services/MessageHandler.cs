@@ -93,20 +93,20 @@ namespace Dream_Stream.Services
                 Messages = messages,
                 Offset = length
             }, webSocket);
-
-            //if (Messages.Count == 0)
-            //{
-            //    await SendResponse(new NoNewMessage(), webSocket);
-            //    return;
-            //}
-
-            //SendResponse(Messages.Take(), webSocket);
         }
 
         private static async Task HandlePublishMessage(MessageHeader header, byte[] messages, WebSocket webSocket)
         {
-            await Storage.Store(header.Topic, header.Partition, messages);
-            //Messages.Add(messages);
+            var retryCounter = 0;
+            while (await Storage.Store(header.Topic, header.Partition, messages) == 0 && retryCounter++ < 5)
+            {
+                Console.WriteLine($"Retrying store message to Topic: {header.Topic}, Partition: {header.Partition}, retry count: {retryCounter}");
+                if (retryCounter == 4)
+                {
+                    Console.WriteLine($"Failed to store message to Topic: {header.Topic}, Partition: {header.Partition}");
+                }
+            }
+            
             await SendResponse(new MessageReceived(), webSocket);
         }
 
