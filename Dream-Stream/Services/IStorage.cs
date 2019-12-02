@@ -1,12 +1,19 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
+using Dream_Stream.Models.Messages;
+using Dream_Stream.Models.Messages.ConsumerMessages;
 
 namespace Dream_Stream.Services
 {
     public interface IStorage
     {
-        Task<long> Store(string topic, int partition, byte[] message);
-        Task<(List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount);
-        Task<long> ReadOffset(string consumerGroup, string topic, int partition);
+        Task Store(MessageHeader header, byte[] message);
+
+        Task<(MessageHeader header, List<byte[]> messages, int length)> Read(string consumerGroup, string topic,
+            int partition, long offset, int amount);
+
+        Task StoreOffset(string consumerGroup, string topic, int partition, long offset);
+
+        Task<OffsetResponse> ReadOffset(string consumerGroup, string topic, int partition);
     }
 }

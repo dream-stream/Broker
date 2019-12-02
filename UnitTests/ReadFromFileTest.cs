@@ -7,7 +7,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Dream_Stream.Models.Messages;
-using Dream_Stream.Models.Messages.ConsumerMessages;
 using Dream_Stream.Services;
 using MessagePack;
 using Xunit;
@@ -20,6 +19,7 @@ namespace UnitTests
     {
         private readonly ITestOutputHelper _testOutputHelper;
         private readonly StorageService _storage = new StorageService();
+        private readonly MessageHandler _messageHandler = new MessageHandler(false);
 
         public ReadFromFileTest(ITestOutputHelper testOutputHelper)
         {
@@ -62,13 +62,13 @@ namespace UnitTests
             //await _storage.Store("TestTopic", 3, message);
 
             _testOutputHelper.WriteLine("---- Iteration 1 ----");
-            var (messages, offset) = await _storage.Read("MyGroup", "TestTopic", 3, 322, 40);
+            var (header, messages, offset) = await _storage.Read("MyGroup", "TestTopic", 3, 322, 40);
 
             messages.ForEach(item => _testOutputHelper.WriteLine($"msg: {LZ4MessagePackSerializer.Deserialize<string>(item)}"));
             _testOutputHelper.WriteLine($"offset increase: {offset}");
 
             _testOutputHelper.WriteLine("---- Iteration 2 ----");
-            var (messages2, offset2) = await _storage.Read("MyGroup", "TestTopic", 3,  322 + offset, 40);
+            var (header2, messages2, offset2) = await _storage.Read("MyGroup", "TestTopic", 3,  322 + offset, 40);
 
             messages2.ForEach(item => _testOutputHelper.WriteLine($"msg: {LZ4MessagePackSerializer.Deserialize<string>(item)}"));
             _testOutputHelper.WriteLine($"offset increase: {offset2}");
@@ -86,7 +86,7 @@ namespace UnitTests
             await _storage.StoreOffset(consumerGroup, topic, partition, offsetStored);
             var offsetRead = await _storage.ReadOffset(consumerGroup, topic, partition);
 
-            Assert.Equal(offsetStored, offsetRead);
+            Assert.Equal(offsetStored, offsetRead.Offset);
         }
 
 
@@ -99,9 +99,9 @@ namespace UnitTests
             var list = new List<MessageContainer>();
             var list1 = new List<MessageContainer>();
 
-            var (messages, length) = await _storage.Read(consumerGroup, topic, partition, 0, 6000);
+            var (header, messages, length) = await _storage.Read(consumerGroup, topic, partition, 0, 6000);
             await Task.Delay(3000);
-            var (messages1, length1) = await _storage.Read(consumerGroup, topic, partition, length, 6000);
+            var (header1, messages1, length1) = await _storage.Read(consumerGroup, topic, partition, length, 6000);
 
             foreach (var message in messages)
             {
@@ -143,13 +143,13 @@ namespace UnitTests
             var list = new List<MessageContainer>();
 
 
-            var offset = await _storage.Store(topic, partition, message);
+            //var offset = await _storage.Store(topic, partition, message);
 
-            var (messages, length) = await _storage.Read(consumerGroup, topic, partition, offset, 6000);
-            foreach (var msg in messages)
-            {
-                list.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(msg) as MessageContainer);
-            }
+            //var (messages, length) = await _storage.Read(consumerGroup, topic, partition, offset, 6000);
+            //foreach (var msg in messages)
+            //{
+            //    list.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(msg) as MessageContainer);
+            //}
         }
 
         [Fact]
@@ -157,29 +157,78 @@ namespace UnitTests
         {
             const string consumerGroup = "Anders-Is-A-Noob";
             const string topic = "Topic3";
-            const int partition = 4;
             var list = new List<MessageContainer>();
-            var length = 0;
 
-            try
+            for (var i = 0; i < 12; i++)
             {
+                var length = 0;
+                var messagesRead = 0;
                 while (true)
                 {
-                    var (messages, length1) = await _storage.Read(consumerGroup, topic, partition, length, 6000);
+                    var (header, messages, length1) = await _storage.Read(consumerGroup, topic, i, length, 6000);
                     length += length1;
                     if (length1 == 0) break;
 
                     foreach (var message in messages)
                     {
                         list.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
+                        messagesRead++;
                     }
                 }
+
+                _testOutputHelper.WriteLine($"{messagesRead} batched messages read from partition {i}");
             }
-            catch (Exception e)
+        }
+
+
+        [Fact]
+        public async Task ConsumePartitionAsync()
+        {
+            const string consumerGroup = "Anders-Is-A-Noob";
+            const string topic = "Topic3";
+            var list = new List<MessageContainer>();
+            const int partitionCount = 12;
+            var messagesPerPartition = new int[partitionCount];
+            var lengthPerPartition = new int[partitionCount];
+            var totalMessage = 0;
+
+            Parallel.For(0, partitionCount, async i =>
             {
-                _testOutputHelper.WriteLine(e.ToString());
-                throw;
+                var length = 0;
+                var messagesRead = 0;
+
+                while (true)
+                {
+                    var (header, messages, length1) = await _storage.Read(consumerGroup, topic, i, length, 6000);
+                    length += length1;
+                    lengthPerPartition[i] += length1;
+                    if (length1 == 0) break;
+
+                    foreach (var message in messages)
+                    {
+                        var deserialized = LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer;
+                        list.Add(deserialized);
+                        messagesRead++;
+                        messagesPerPartition[i] += deserialized.Messages.Count;
+
+                    }
+                }
+
+                _testOutputHelper.WriteLine($"{messagesRead} batched messages read from partition {i}");
+            });
+
+            await Task.Delay(1000); //Allow threads to finish
+
+            for (int i = 0; i < partitionCount; i++)
+            {
+                _testOutputHelper.WriteLine($"{messagesPerPartition[i]} messages read from partition {i}");
+                totalMessage += messagesPerPartition[i];
             }
+            for (int i = 0; i < partitionCount; i++)
+            {
+                _testOutputHelper.WriteLine($"{lengthPerPartition[i]} length of partition {i}");
+            }
+            _testOutputHelper.WriteLine($"{totalMessage} messages read");
         }
 
         [Fact]

@@ -16,21 +16,17 @@ namespace Dream_Stream.Services
     {
         private static readonly Counter MessageBatchesReceived = Metrics.CreateCounter("message_batches_received", "", new CounterConfiguration
         {
-            LabelNames = new []{"Topic"}
+            LabelNames = new[] { "Topic" }
         });
         private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.");
         private readonly IStorage _storage;
 
         public MessageHandler(bool storageMethod)
         {
-            if (storageMethod)
-            {
+            if(storageMethod)
                 _storage = new StorageApiService();
-            }
             else
-            {
                 _storage = new StorageService();
-            }
         }
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
@@ -80,23 +76,33 @@ namespace Dream_Stream.Services
 
         private async Task HandleOffsetRequest(OffsetRequest request, WebSocket webSocket)
         {
-            var offset = await _storage.ReadOffset(request.ConsumerGroup, request.Topic, request.Partition);
+            var offsetResponse = await _storage.ReadOffset(request.ConsumerGroup, request.Topic, request.Partition);
 
-            await SendResponse(new OffsetResponse { Offset = offset }, webSocket);
+            await SendResponse(offsetResponse, webSocket);
         }
 
-        private async Task HandleMessageRequest(MessageRequest msg, WebSocket webSocket)
+        public async Task HandleMessageRequest(MessageRequest request, WebSocket webSocket)
         {
-            var (messages, length) = await _storage.Read(msg.ConsumerGroup, msg.Topic, msg.Partition, msg.OffSet, msg.ReadSize);
+            //Console.WriteLine($"Getting message from {request.Topic}/{request.Partition}/{request.OffSet}");
+            if (request.OffSet == -1)
+            {
+                request.OffSet = (await _storage.ReadOffset(request.ConsumerGroup, request.Topic, request.Partition)).Offset;
+            }
+            
+            var offsetTask = _storage.StoreOffset(request.ConsumerGroup, request.Topic, request.Partition, request.OffSet);
+            var readTask = _storage.Read(request.ConsumerGroup, request.Topic, request.Partition, request.OffSet, request.ReadSize);
+            await Task.WhenAll(offsetTask, readTask);
+            var (header, messages, length) = readTask.Result;
 
             if (length == 0)
             {
-                await SendResponse(new NoNewMessage(), webSocket);
+                await SendResponse(new NoNewMessage {Header = header}, webSocket);
                 return;
             }
 
             await SendResponse(new MessageRequestResponse
             {
+                Header = header,
                 Messages = messages,
                 Offset = length
             }, webSocket);
@@ -104,15 +110,7 @@ namespace Dream_Stream.Services
 
         private async Task HandlePublishMessage(MessageHeader header, byte[] messages, WebSocket webSocket)
         {
-            var retryCounter = 0;
-            while (await _storage.Store(header.Topic, header.Partition, messages) == 0 && retryCounter++ < 5)
-            {
-                Console.WriteLine($"Retrying store message to Topic: {header.Topic}, Partition: {header.Partition}, retry count: {retryCounter}");
-                if (retryCounter == 5)
-                {
-                    Console.WriteLine($"Failed to store message to Topic: {header.Topic}, Partition: {header.Partition}");
-                }
-            }
+            await _storage.Store(header, messages);
             
             await SendResponse(new MessageReceived(), webSocket);
         }

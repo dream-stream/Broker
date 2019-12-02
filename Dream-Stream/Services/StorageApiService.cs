@@ -15,48 +15,100 @@ namespace Dream_Stream.Services
 {
     public class StorageApiService : IStorage
     {
-        private readonly ClientWebSocket _apiSocket = new ClientWebSocket();
+        //private const string StorageAddress = "ws://storage-api/ws";
+        //private const string StorageAddress = "ws://worker6:30005/ws";
+        private const string StorageAddress = "ws://localhost:5040/ws";
+
+        private readonly Dictionary<string, ClientWebSocket> _socketDict = new Dictionary<string, ClientWebSocket>(
+            new[]
+        {
+            new KeyValuePair<string, ClientWebSocket>("StoreSocket", new ClientWebSocket()),
+            new KeyValuePair<string, ClientWebSocket>("ReadSocket", new ClientWebSocket()),
+            new KeyValuePair<string, ClientWebSocket>("StoreOffsetSocket", new ClientWebSocket()),
+            new KeyValuePair<string, ClientWebSocket>("ReadOffsetSocket", new ClientWebSocket())
+        });
+
         private readonly byte[] _buffer = new byte[1024 * 6];
         private readonly MemoryCache _cache = new MemoryCache(new MemoryCacheOptions()
         {
             SizeLimit = 1000000000 //1GB
         });
 
-        public async Task<long> Store(string topic, int partition, byte[] message)
+
+
+        public async Task Store(MessageHeader header, byte[] message)
         {
-            if(_apiSocket.State != WebSocketState.Open)
-                await _apiSocket.ConnectAsync(new Uri("http://Dream-Stream-Storage"), CancellationToken.None);
-
-            await _apiSocket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize<IMessage>(new StoreRequest
+            if (_socketDict.TryGetValue("StoreSocket", out var socket))
             {
-                Topic = topic,
-                Partition = partition,
-                Message = message
-            })), WebSocketMessageType.Binary, false, CancellationToken.None);
+                if (socket.State != WebSocketState.Open)
+                    await socket.ConnectAsync(new Uri(StorageAddress), CancellationToken.None);
 
-            var webSocketReceiveResult = await _apiSocket.ReceiveAsync(new ArraySegment<byte>(_buffer), CancellationToken.None);
+                await socket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize<IMessage>(new StoreRequest
+                {
+                    Topic = header.Topic,
+                    Partition = header.Partition,
+                    Message = message
+                })), WebSocketMessageType.Binary, false, CancellationToken.None);
 
-            if (!(LZ4MessagePackSerializer.Deserialize<IMessage>(_buffer.Take(webSocketReceiveResult.Count).ToArray()) is MessageReceived messageResponse)) return 0;
+                var webSocketReceiveResult = await socket.ReceiveAsync(new ArraySegment<byte>(_buffer), CancellationToken.None);
 
-            var options = new MemoryCacheEntryOptions
-            {
-                Size = message.Length
-            };
-            _cache.Set($"{topic}/{partition}/{messageResponse.Offset}", message, options);
+                if (!(LZ4MessagePackSerializer.Deserialize<IMessage>(_buffer.Take(webSocketReceiveResult.Count).ToArray())
+                    is MessageReceived messageResponse)) return; //Failed
 
-            return messageResponse.Offset;
+                var options = new MemoryCacheEntryOptions
+                {
+                    Size = message.Length
+                };
+                _cache.Set($"{messageResponse.Header.Topic}/{messageResponse.Header.Partition}/{messageResponse.Offset}", message, options);
+            }
         }
 
-        public async Task<(List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)
+        public async Task<(MessageHeader header, List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)
         {
-            if (_apiSocket.State != WebSocketState.Open)
-                await _apiSocket.ConnectAsync(new Uri("http://Dream-Stream-Storage"), CancellationToken.None);
-
-            var cacheItems = ReadFromCache($"{topic}/{partition}/{offset}", offset, amount);
-            if (cacheItems.length != 0)
+            if (_socketDict.TryGetValue("ReadSocket", out var socket))
             {
+                if (socket.State != WebSocketState.Open)
+                    await socket.ConnectAsync(new Uri(StorageAddress), CancellationToken.None);
+
+                var cacheItems = ReadFromCache($"{topic}/{partition}/{offset}", offset, amount);
+                if (cacheItems.length != 0)
+                {
+                    return cacheItems;
+                }
+
+                await socket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize<IMessage>(new MessageRequest
+                {
+                    ConsumerGroup = consumerGroup,
+                    Topic = topic,
+                    Partition = partition,
+                    OffSet = offset,
+                    ReadSize = amount
+                })), WebSocketMessageType.Binary, false, CancellationToken.None);
+
+                var webSocketReceiveResult = await socket.ReceiveAsync(new ArraySegment<byte>(_buffer), CancellationToken.None);
+
+                if (LZ4MessagePackSerializer.Deserialize<IMessage>(_buffer.Take(webSocketReceiveResult.Count).ToArray()) is ReadResponse messageResponse)
+                {
+                    var (messages, length) = SplitByteRead(messageResponse.Message);
+
+                    if (LZ4MessagePackSerializer.Deserialize<IMessage>(messages[0]) is MessageContainer messageContainer)
+                        return (messageContainer.Header, messages, length);
+                }
+
+            }
+
+            return (null, null, 0);
+        }
+
+        public async Task StoreOffset(string consumerGroup, string topic, int partition, long offset)
+        {   
+            if (_socketDict.TryGetValue("StoreOffsetSocket", out var socket))
+            {
+                if (socket.State != WebSocketState.Open)
+                    await socket.ConnectAsync(new Uri(StorageAddress), CancellationToken.None);
+
 #pragma warning disable 4014
-                _apiSocket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize<IMessage>(new StoreOffsetRequest
+                socket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize<IMessage>(new StoreOffsetRequest
 #pragma warning restore 4014
                 {
                     ConsumerGroup = consumerGroup,
@@ -64,54 +116,51 @@ namespace Dream_Stream.Services
                     Partition = partition,
                     Offset = offset
                 })), WebSocketMessageType.Binary, false, CancellationToken.None);
-                return cacheItems;
+            }
+        }
+
+        public async Task<OffsetResponse> ReadOffset(string consumerGroup, string topic, int partition)
+        {
+            if (_socketDict.TryGetValue("ReadOffsetSocket", out var socket))
+            {
+                if (socket.State != WebSocketState.Open)
+                    await socket.ConnectAsync(new Uri(StorageAddress), CancellationToken.None);
+
+                await socket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize<IMessage>(new OffsetRequest
+                {
+                    ConsumerGroup = consumerGroup,
+                    Topic = topic,
+                    Partition = partition,
+                })), WebSocketMessageType.Binary, false, CancellationToken.None);
+
+                var webSocketReceiveResult = await socket.ReceiveAsync(new ArraySegment<byte>(_buffer), CancellationToken.None);
+
+                return LZ4MessagePackSerializer.Deserialize<IMessage>(_buffer.Take(webSocketReceiveResult.Count).ToArray())
+                    is OffsetResponse messageResponse
+                    ? messageResponse
+                    : null;
             }
 
-            await _apiSocket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize<IMessage>(new MessageRequest
-            {
-                ConsumerGroup = consumerGroup,
-                Topic = topic,
-                Partition = partition,
-                OffSet = offset,
-                ReadSize = amount
-            })), WebSocketMessageType.Binary, false, CancellationToken.None);
-
-            var webSocketReceiveResult = await _apiSocket.ReceiveAsync(new ArraySegment<byte>(_buffer), CancellationToken.None);
-
-            return LZ4MessagePackSerializer.Deserialize<IMessage>(_buffer.Take(webSocketReceiveResult.Count).ToArray())
-                is ReadResponse messageResponse
-                ? SplitByteRead(messageResponse.Message)
-                : (null, 0);
+            return null;
         }
 
-        public async Task<long> ReadOffset(string consumerGroup, string topic, int partition)
+        private (MessageHeader header, List<byte[]> messages, int length) ReadFromCache(string path, long offset, int amount)
         {
-            if (_apiSocket.State != WebSocketState.Open)
-                await _apiSocket.ConnectAsync(new Uri("http://Dream-Stream-Storage"), CancellationToken.None);
+            (MessageHeader header, List<byte[]> messages, int length) response = (new MessageHeader(), new List<byte[]>(), 0);
+            var getHeader = true;
 
-            await _apiSocket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize<IMessage>(new OffsetRequest
-            {
-                ConsumerGroup = consumerGroup,
-                Topic = topic,
-                Partition = partition,
-            })), WebSocketMessageType.Binary, false, CancellationToken.None);
-
-            var webSocketReceiveResult = await _apiSocket.ReceiveAsync(new ArraySegment<byte>(_buffer), CancellationToken.None);
-            return LZ4MessagePackSerializer.Deserialize<IMessage>(_buffer.Take(webSocketReceiveResult.Count).ToArray())
-                is OffsetResponse messageResponse
-                ? messageResponse.Offset
-                : 0;
-        }
-
-        private (List<byte[]> messages, int length) ReadFromCache(string path, long offset, int amount)
-        {
-            (List<byte[]> messages, int length) response = (new List<byte[]>(), 0);
 
             while (true)
             {
                 if (_cache.TryGetValue($"{path}/{offset}", out byte[] item))
                 {
                     if (response.length + item.Length > amount) return response;
+
+                    if (getHeader)
+                    {
+                        response.header = (LZ4MessagePackSerializer.Deserialize<IMessage>(item) as MessageContainer)?.Header;
+                        getHeader = false;
+                    }
 
                     response.messages.Add(item);
                     response.length += item.Length;
@@ -150,12 +199,7 @@ namespace Dream_Stream.Services
                 }
             }
 
-            if (list.Count == 0)
-            {
-                list.Add(messages);
-            }
-
-            return (list, start);
+            return (list, indexOfEndMessage);
         }
     }
 }

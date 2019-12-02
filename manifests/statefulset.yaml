@@ -23,6 +23,8 @@ spec:
         env:
         - name: ASPNETCORE_URLS
           value: "http://*:80"
+        - name: STORAGE_METHOD
+          value: "API"
         volumeMounts:
         - name: file-writing
           mountPath: /mnt/data

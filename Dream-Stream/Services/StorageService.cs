@@ -1,10 +1,14 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Dream_Stream.Models.Messages;
+using Dream_Stream.Models.Messages.ConsumerMessages;
+using MessagePack;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Dream_Stream.Services
@@ -12,105 +16,88 @@ namespace Dream_Stream.Services
     public class StorageService : IStorage
     {
         private const string BasePath = "/mnt/data";
-        private static readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
-        private static readonly ReaderWriterLockSlim OffsetLock = new ReaderWriterLockSlim();
-        private static readonly Dictionary<string, (Timer timer, FileStream stream)> PartitionFiles = new Dictionary<string, (Timer timer, FileStream stream)>();
+        private static readonly ConcurrentDictionary<string, (Timer timer, FileStream stream)> PartitionFiles = new ConcurrentDictionary<string, (Timer timer, FileStream stream)>();
+        private const int TimerExecutionTimer = 10000;
         private readonly MemoryCache _cache = new MemoryCache(new MemoryCacheOptions()
         {
             SizeLimit = 1000000000 //1GB
         });
 
-        public async Task<long> Store(string topic, int partition, byte[] message)
+        public async Task Store(MessageHeader header, byte[] message)
         {
-            try
+            var path = $@"{BasePath}/{header.Topic}/{header.Partition}.txt";
+            
+            if (!File.Exists(path))
+                CreateFile(path);
+            
+            if (!PartitionFiles.ContainsKey(path))
             {
-                var path = $@"{BasePath}/{topic}/{partition}.txt";
-                if (!File.Exists(path))
-                    CreateFile(path);
-                if (!PartitionFiles.ContainsKey(path))
-                {
-                    PartitionFiles.TryAdd(path, (new Timer(x =>
-                        {
-                            if (!PartitionFiles.TryGetValue(path, out var tuple)) return;
-                            tuple.stream.Close();
-                            tuple.stream.Dispose();
-                            PartitionFiles.Remove(path);
-                            tuple.timer.Dispose();
-                        }, null, 10000, 10000),
-                        new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
-                }
-
-                long offset = 0;
-                Lock.EnterWriteLock();
-                if (PartitionFiles.TryGetValue(path, out var tuple))
-                {
-                    tuple.timer.Change(10000, 10000);
-                    tuple.stream.Seek(0, SeekOrigin.End);
-                    offset = tuple.stream.Position;
-                    tuple.stream.Write(message);
-                }
-
-                Lock.ExitWriteLock();
-
-                if (!(tuple.stream is null))
-                {
-                    var options = new MemoryCacheEntryOptions()
+                PartitionFiles.TryAdd(path, (new Timer(x =>
                     {
-                        Size = message.Length
-                    };
-                    _cache.Set($"{path}/{offset}", message, options);
-                }
-
-                return offset;
+                        if (!PartitionFiles.TryGetValue(path, out var tuple)) return;
+                        tuple.stream.Close();
+                        tuple.stream.Dispose();
+                        PartitionFiles.TryRemove(path, out tuple);
+                        tuple.timer.Dispose();
+                    }, null, TimerExecutionTimer, Timeout.Infinite),
+                    new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
             }
-            catch (Exception e)
+
+            long offset = 0;
+            if (PartitionFiles.TryGetValue(path, out var tuple))
             {
-                Lock.ExitWriteLock();
-                Console.WriteLine(e);
-                return 0;
+                tuple.timer.Change(TimerExecutionTimer, Timeout.Infinite);
+                tuple.stream.Seek(0, SeekOrigin.End);
+                offset = tuple.stream.Position;
+                tuple.stream.Write(message);
+            }
+
+            if (!(tuple.stream is null))
+            {
+                var options = new MemoryCacheEntryOptions
+                {
+                    Size = message.Length
+                };
+                _cache.Set($"{path}/{offset}", message, options);
             }
         }
 
-        public async Task<(List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)
+        public async Task<(MessageHeader header, List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)
         {
-            try
-            {
-                await StoreOffset(consumerGroup, topic, partition, offset);
+            var path = $"{BasePath}/{topic}/{partition}.txt";
 
-                var path = $@"{BasePath}/{topic}/{partition}.txt";
+            var cacheItems = ReadFromCache(path, offset, amount);
+            if (cacheItems.length != 0)
+                return cacheItems;
 
-                var cacheItems = ReadFromCache(path, offset, amount);
-                if (cacheItems.length != 0)
-                    return cacheItems;
+            if (!File.Exists(path))
+                CreateFile(path);
 
-                if (!File.Exists(path))
-                    CreateFile(path);
-                if (!PartitionFiles.ContainsKey(path + consumerGroup))
-                    PartitionFiles.TryAdd(path + consumerGroup, (new Timer(x =>
+            if (!PartitionFiles.ContainsKey(path + consumerGroup))
+                PartitionFiles.TryAdd(path + consumerGroup, (new Timer(x =>
                     {
                         if (!PartitionFiles.TryGetValue(path + consumerGroup, out var tuple)) return;
                         tuple.stream.Close();
                         tuple.stream.Dispose();
-                        PartitionFiles.Remove(path + consumerGroup);
+                        PartitionFiles.TryRemove(path + consumerGroup, out tuple);
                         tuple.timer.Dispose();
-                    }, null, 10000, 10000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
+                    }, null, TimerExecutionTimer, Timeout.Infinite),
+                    new FileStream(path, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read)));
 
-
-                var buffer = new byte[amount];
-                if (PartitionFiles.TryGetValue(path + consumerGroup, out var stream))
-                {
-                    stream.stream.Seek(offset, SeekOrigin.Begin);
-                    stream.stream.Read(buffer, 0, amount);
-                    stream.timer.Change(10000, 10000);
-                }
-
-                return SplitByteRead(buffer);
-            }
-            catch (Exception e)
+            var buffer = new byte[amount];
+            var read = 0;
+            if (PartitionFiles.TryGetValue(path + consumerGroup, out var stream))
             {
-                Console.WriteLine(e);
-                return (null, 0);
+                stream.timer.Change(TimerExecutionTimer, Timeout.Infinite);
+                stream.stream.Seek(offset, SeekOrigin.Begin);
+                read = await stream.stream.ReadAsync(buffer, 0, amount);
             }
+
+            if (read == 0) return (new MessageHeader() {Topic = topic, Partition = partition}, null, 0);
+
+            var (messages, length) = SplitByteRead(buffer);
+
+            return (new MessageHeader {Topic = topic, Partition = partition}, messages, length);
         }
 
         public async Task StoreOffset(string consumerGroup, string topic, int partition, long offset)
@@ -128,21 +115,19 @@ namespace Dream_Stream.Services
                         if (!PartitionFiles.TryGetValue(path, out var tuple)) return;
                         tuple.stream.Close();
                         tuple.stream.Dispose();
-                        PartitionFiles.Remove(path);
+                        PartitionFiles.TryRemove(path, out tuple);
                         tuple.timer.Dispose();
-                    }, null, 10000, 10000), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
+                    }, null, TimerExecutionTimer, Timeout.Infinite), new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite)));
                 }
 
                 var data = Encoding.ASCII.GetBytes($"{offset}");
 
-                OffsetLock.EnterWriteLock();
                 if (PartitionFiles.TryGetValue(path, out var stream))
                 {
                     stream.stream.Seek(0, SeekOrigin.Begin);
                     stream.stream.Write(data);
-                    stream.timer.Change(10000, 10000);
+                    stream.timer.Change(TimerExecutionTimer, Timeout.Infinite);
                 }
-                OffsetLock.ExitWriteLock();
             }
             catch (Exception e)
             {
@@ -150,7 +135,7 @@ namespace Dream_Stream.Services
             }   
         }
 
-        public async Task<long> ReadOffset(string consumerGroup, string topic, int partition)
+        public async Task<OffsetResponse> ReadOffset(string consumerGroup, string topic, int partition)
         {
             try
             {
@@ -164,27 +149,47 @@ namespace Dream_Stream.Services
                 {
                     stream.stream.Seek(0, SeekOrigin.Begin);
                     stream.stream.Read(buffer, 0, 8);
-                    stream.timer.Change(10000, 10000);
+                    stream.timer.Change(TimerExecutionTimer, Timeout.Infinite);
                 }
 
-                return long.TryParse(Encoding.ASCII.GetString(buffer), out var offset) ? offset : 0;
+                return new OffsetResponse()
+                {
+                    ConsumerGroup = consumerGroup,
+                    Topic = topic,
+                    Partition = partition,
+                    Offset = long.TryParse(Encoding.ASCII.GetString(buffer), out var offset) ? offset : 0
+                };
             }
             catch (Exception e)
             {
                 Console.WriteLine(e);
-                return 0;
+                return new OffsetResponse()
+                {
+                    ConsumerGroup = consumerGroup,
+                    Topic = topic,
+                    Partition = partition,
+                    Offset = 0
+                };
             }
         }
 
-        private (List<byte[]> messages, int length) ReadFromCache(string path, long offset, int amount)
+        private (MessageHeader header, List<byte[]> messages, int length) ReadFromCache(string path, long offset, int amount)
         {
-            (List<byte[]> messages, int length) response = (new List<byte[]>(), 0);
+            (MessageHeader header, List<byte[]> messages, int length) response = (new MessageHeader(), new List<byte[]>(), 0);
+            var getHeader = true;
+
 
             while (true)
             {
                 if (_cache.TryGetValue($"{path}/{offset}", out byte[] item))
                 {
                     if (response.length + item.Length > amount) return response;
+
+                    if (getHeader)
+                    {
+                        response.header = (LZ4MessagePackSerializer.Deserialize<IMessage>(item) as MessageContainer)?.Header;
+                        getHeader = false;
+                    }
 
                     response.messages.Add(item);
                     response.length += item.Length;
@@ -199,8 +204,13 @@ namespace Dream_Stream.Services
 
         private static (List<byte[]> messages, int length) SplitByteRead(IReadOnlyList<byte> read)
         {
+            if (read[0] == 0) return (null, 0);
+
             var list = new List<byte[]>();
             var indexOfEndMessage = 0;
+            var indexOfLastNonZero = 0;
+            var foundLastNonZeroIndex = false;
+
 
             for (var i = read.Count - 1; i >= 3; i--)
             {
@@ -209,8 +219,16 @@ namespace Dream_Stream.Services
                     indexOfEndMessage = i - 3;
                     break;
                 }
+
+                if (!foundLastNonZeroIndex && read[i] != 0)
+                {
+                    indexOfLastNonZero = i + 1;
+                    foundLastNonZeroIndex = true;
+                }
             }
-            
+
+            if (indexOfEndMessage == 0) indexOfEndMessage = indexOfLastNonZero;
+
             var messages = read.Take(indexOfEndMessage).ToArray();
 
             var start = 0;
@@ -226,9 +244,10 @@ namespace Dream_Stream.Services
             if (list.Count == 0)
             {
                 list.Add(messages);
+                return (list, messages.Length);
             }
 
-            return (list, start);
+            return (list, indexOfEndMessage);
         }
 
         private void CreateFile(string path)
