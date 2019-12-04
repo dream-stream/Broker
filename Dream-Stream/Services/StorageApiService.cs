@@ -12,8 +12,8 @@ namespace Dream_Stream.Services
 {
     public class StorageApiService : IStorage
     {
-        //private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
-        private readonly Uri _storageApiAddress = new Uri("http://storage-api");
+        private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
+        //private readonly Uri _storageApiAddress = new Uri("http://storage-api");
 
         private readonly HttpClient _storageClient = new HttpClient();
 
@@ -107,25 +107,22 @@ namespace Dream_Stream.Services
             
             var list = new List<byte[]>();
             const int messageHeaderSize = 10;
-            var length = 0;
             var skipLength = 0;
-            var messageHeader = new byte[10];
+            var messageHeader = new byte[messageHeaderSize];
 
             while (true)
             {
-
-                Array.Copy(read, skipLength, messageHeader, 0, messageHeader.Length);
+                Array.Copy(read, skipLength, messageHeader, 0, messageHeaderSize);
                 var messageLength = BitConverter.ToInt32(messageHeader);
+                
+                if (messageLength + skipLength + messageHeaderSize > read.Length || messageLength == 0) return (list, skipLength);
+
                 var message = new byte[messageLength];
-
-                if (messageLength + skipLength + messageHeaderSize > read.Length) return (list, length);
-
                 Array.Copy(read, skipLength + messageHeaderSize, message, 0, messageLength);
                 list.Add(message);
-                length += message.Length;
                 skipLength += message.Length + messageHeaderSize;
                 
-                if (skipLength == read.Length) return (list, length);
+                if (skipLength >= read.Length - messageHeaderSize) return (list, skipLength);
             }
         }
     }

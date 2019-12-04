@@ -256,12 +256,12 @@ namespace UnitTests
 
             var data1 = LZ4MessagePackSerializer.Serialize<IMessage>(message1);
             var length1 = new byte[10];
-            BitConverter.GetBytes(data1.Length - 5).CopyTo(length1, 0);
+            BitConverter.GetBytes(data1.Length).CopyTo(length1, 0);
             var data2 = LZ4MessagePackSerializer.Serialize<IMessage>(message2);
             var length2 = new byte[10];
             BitConverter.GetBytes(data2.Length).CopyTo(length2, 0);
 
-            var dataConcat = length1.Concat(data1.Take(20)).Concat(length2).Concat(data2).ToArray();
+            var dataConcat = length1.Concat(data1).Concat(length2).Concat(data2).ToArray();
 
             var (messages, length) = StorageApiService.SplitByteRead(dataConcat);
         }
