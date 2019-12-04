@@ -18,7 +18,10 @@ namespace Dream_Stream.Services
         {
             LabelNames = new[] { "Topic" }
         });
-        private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.");
+        private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.", new CounterConfiguration
+        {
+            LabelNames = new[] { "Topic" }
+        });
         private readonly IStorage _storage;
         private static readonly SemaphoreSlim Lock = new SemaphoreSlim(1,1);
 
@@ -86,7 +89,7 @@ namespace Dream_Stream.Services
                                 case MessageContainer msg:
                                     await HandlePublishMessage(msg.Header, buf, webSocket);
                                     MessageBatchesReceived.WithLabels(msg.Header.Topic).Inc();
-                                    MessagesReceived.Inc(msg.Messages.Count);
+                                    MessagesReceived.WithLabels(msg.Header.Topic).Inc(msg.Messages.Count);
                                     break;
                                 case MessageRequest msg:
                                     await HandleMessageRequest(msg, webSocket);
