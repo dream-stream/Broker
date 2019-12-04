@@ -18,12 +18,12 @@ namespace Dream_Stream.Services
         private const string BasePath = "/mnt/data";
         private static readonly ConcurrentDictionary<string, (Timer timer, FileStream stream)> PartitionFiles = new ConcurrentDictionary<string, (Timer timer, FileStream stream)>();
         private const int TimerExecutionTimer = 10000;
-        private readonly MemoryCache _cache = new MemoryCache(new MemoryCacheOptions()
+        private readonly MemoryCache _cache = new MemoryCache(new MemoryCacheOptions
         {
             SizeLimit = 1000000000 //1GB
         });
 
-        public async Task Store(MessageHeader header, byte[] message)
+        public async Task<long> Store(MessageHeader header, byte[] message)
         {
             var path = $@"{BasePath}/{header.Topic}/{header.Partition}.txt";
             
@@ -49,7 +49,7 @@ namespace Dream_Stream.Services
                 tuple.timer.Change(TimerExecutionTimer, Timeout.Infinite);
                 tuple.stream.Seek(0, SeekOrigin.End);
                 offset = tuple.stream.Position;
-                tuple.stream.Write(message);
+                await tuple.stream.WriteAsync(message);
             }
 
             if (!(tuple.stream is null))
@@ -60,6 +60,8 @@ namespace Dream_Stream.Services
                 };
                 _cache.Set($"{path}/{offset}", message, options);
             }
+
+            return offset;
         }
 
         public async Task<(MessageHeader header, List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)

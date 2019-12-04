@@ -20,6 +20,7 @@ namespace Dream_Stream.Services
         });
         private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.");
         private readonly IStorage _storage;
+        private static readonly SemaphoreSlim Lock = new SemaphoreSlim(1,1);
 
         public MessageHandler(bool storageMethod)
         {
@@ -31,36 +32,75 @@ namespace Dream_Stream.Services
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
-            var buffer = new byte[1024 * 6];
+            var buffer = new byte[1024 * 1000];
             WebSocketReceiveResult result = null;
             Console.WriteLine($"Handling message from: {context.Connection.RemoteIpAddress}");
+            var tasks = new []
+            {
+                Task.CompletedTask,
+                Task.CompletedTask,
+                Task.CompletedTask,
+                Task.CompletedTask,
+                Task.CompletedTask,
+                Task.CompletedTask,
+                Task.CompletedTask,
+                Task.CompletedTask,
+                Task.CompletedTask,
+                Task.CompletedTask
+            };
+
+
             try
             {
                 do
                 {
                     result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                    if (result.CloseStatus.HasValue) break;
+                    var localResult = result;
+                    var localBuffer = new byte[buffer.Length];
+                    buffer.CopyTo(localBuffer, 0);
+                    
+                    
+                    if (localResult.CloseStatus.HasValue) break;
 
-                    var buf = buffer.Take(result.Count).ToArray();
+                    var taskIndex = -1;
 
-                    var message =
-                        LZ4MessagePackSerializer.Deserialize<IMessage>(buf);
-
-                    switch (message)
+                    while (taskIndex == -1)
                     {
-                        case MessageContainer msg:
-                            await HandlePublishMessage(msg.Header, buf, webSocket);
-                            MessageBatchesReceived.WithLabels(msg.Header.Topic).Inc();
-                            MessagesReceived.Inc(msg.Messages.Count);
+                        for (var i = 0; i < tasks.Length; i++)
+                        {
+                            if (tasks[i].Status != TaskStatus.RanToCompletion) continue;
+                            taskIndex = i;
                             break;
-                        case MessageRequest msg:
-                            await HandleMessageRequest(msg, webSocket);
-                            break;
-                        case OffsetRequest msg:
-                            await HandleOffsetRequest(msg, webSocket);
-                            break;
+                        }
                     }
 
+                    tasks[taskIndex] = Task.Run(async () =>
+                    {
+                        var buf = localBuffer.Take(localResult.Count).ToArray();
+                        try
+                        {
+                            var message = LZ4MessagePackSerializer.Deserialize<IMessage>(buf);
+
+                            switch (message)
+                            {
+                                case MessageContainer msg:
+                                    await HandlePublishMessage(msg.Header, buf, webSocket);
+                                    MessageBatchesReceived.WithLabels(msg.Header.Topic).Inc();
+                                    MessagesReceived.Inc(msg.Messages.Count);
+                                    break;
+                                case MessageRequest msg:
+                                    await HandleMessageRequest(msg, webSocket);
+                                    break;
+                                case OffsetRequest msg:
+                                    await HandleOffsetRequest(msg, webSocket);
+                                    break;
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                    });
                 } while (!result.CloseStatus.HasValue);
             }
             catch (Exception e)
@@ -85,15 +125,10 @@ namespace Dream_Stream.Services
         {
             //Console.WriteLine($"Getting message from {request.Topic}/{request.Partition}/{request.OffSet}");
             if (request.OffSet == -1)
-            {
                 request.OffSet = (await _storage.ReadOffset(request.ConsumerGroup, request.Topic, request.Partition)).Offset;
-            }
             
-            var offsetTask = _storage.StoreOffset(request.ConsumerGroup, request.Topic, request.Partition, request.OffSet);
-            var readTask = _storage.Read(request.ConsumerGroup, request.Topic, request.Partition, request.OffSet, request.ReadSize);
-            await Task.WhenAll(offsetTask, readTask);
-            var (header, messages, length) = readTask.Result;
-
+            var (header, messages, length) = await _storage.Read(request.ConsumerGroup, request.Topic, request.Partition, request.OffSet, request.ReadSize);
+             
             if (length == 0)
             {
                 await SendResponse(new NoNewMessage {Header = header}, webSocket);
@@ -117,8 +152,10 @@ namespace Dream_Stream.Services
 
         private static async Task SendResponse(IMessage message, WebSocket webSocket)
         {
+            await Lock.WaitAsync();
             await webSocket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize(message)), WebSocketMessageType.Binary, false,
                 CancellationToken.None);
+            Lock.Release();
         }
     }
 }
