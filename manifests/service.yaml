@@ -4,7 +4,7 @@ metadata:
   name: broker
   labels:
     app: broker
-    monitor: "true"
+    k8s-app: prometheus
 spec:
   ports:
   - port: 80
