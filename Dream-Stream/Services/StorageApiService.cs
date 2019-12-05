@@ -31,13 +31,29 @@ namespace Dream_Stream.Services
         {
             var response = await _storageClient.PostAsync($"/message?topic={header.Topic}&partition={header.Partition}&length={message.Length}", new ByteArrayContent(message));
 
-            if (!response.IsSuccessStatusCode) return 0;
+            if (!response.IsSuccessStatusCode) //Retry
+                response = await _storageClient.PostAsync($"/message?topic={header.Topic}&partition={header.Partition}&length={message.Length}", new ByteArrayContent(message));
 
-            return long.TryParse(await response.Content.ReadAsStringAsync(), out var offset) ? offset : 0;
+            if (!long.TryParse(await response.Content.ReadAsStringAsync(), out var offset)) return 0;
+
+
+            var options = new MemoryCacheEntryOptions
+            {
+                Size = message.Length
+            };
+            _cache.Set($"{header.Topic}/{header.Partition}/{offset}", message, options);
+
+            return offset;
         }
 
         public async Task<(MessageHeader header, List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)
         {
+            //Check if the requested data is in cache.
+            var cacheRead = ReadFromCache($"{topic}/{partition}", offset, amount);
+            if (cacheRead.length != 0) return cacheRead;
+
+
+            //Data not in cache read from file.
             var endpoint = $"/message?consumerGroup={consumerGroup}&topic={topic}&partition={partition}&offset={offset}&amount={amount}";
             var response = await _storageClient.GetAsync(endpoint);
             var header = new MessageHeader
@@ -103,7 +119,7 @@ namespace Dream_Stream.Services
 
         public static (List<byte[]> messages, int length) SplitByteRead(byte[] read)
         {
-            if (read[0] == 0) return (null, 0);
+            if (read[0] == 0 || read.Length < 10) return (null, 0);
             
             var list = new List<byte[]>();
             const int messageHeaderSize = 10;

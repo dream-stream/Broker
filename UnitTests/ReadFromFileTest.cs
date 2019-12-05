@@ -158,6 +158,8 @@ namespace UnitTests
             const string consumerGroup = "Anders-Is-A-Noob";
             const string topic = "Topic3";
             var list = new List<MessageContainer>();
+            var api = new StorageApiService();
+
 
             for (var i = 0; i < 12; i++)
             {
@@ -165,14 +167,14 @@ namespace UnitTests
                 var messagesRead = 0;
                 while (true)
                 {
-                    var (header, messages, length1) = await _storage.Read(consumerGroup, topic, i, length, 6000);
+                    var (header, messages, length1) = await api.Read(consumerGroup, topic, i, length, 1024*1000);
                     length += length1;
                     if (length1 == 0) break;
 
                     foreach (var message in messages)
                     {
-                        list.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
-                        messagesRead++;
+                       list.Add(LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer);
+                       messagesRead++;
                     }
                 }
 
@@ -241,7 +243,7 @@ namespace UnitTests
         }
 
         [Fact]
-        public async Task Test()
+        public void MessageSplit_EqualSizeAsRequested()
         {
             var message1 = new Message()
             {
@@ -264,6 +266,83 @@ namespace UnitTests
             var dataConcat = length1.Concat(data1).Concat(length2).Concat(data2).ToArray();
 
             var (messages, length) = StorageApiService.SplitByteRead(dataConcat);
+            Assert.Equal(dataConcat.Length, length);
+        }
+
+        [Fact]
+        public void MessageSplit_RequestedSizeIsGreaterThanSizeOfMessages()
+        {
+            var message1 = new Message
+            {
+                Address = "Address1",
+                Measurement = 20
+            };
+            var message2 = new Message
+            {
+                Address = "Address1",
+                Measurement = 20
+            };
+
+            var data1 = LZ4MessagePackSerializer.Serialize<IMessage>(message1);
+            var length1 = new byte[10];
+            BitConverter.GetBytes(data1.Length).CopyTo(length1, 0);
+            var data2 = LZ4MessagePackSerializer.Serialize<IMessage>(message2);
+            var length2 = new byte[10];
+            BitConverter.GetBytes(data2.Length).CopyTo(length2, 0);
+            var appendData = new byte[20];
+
+
+            var dataConcat = length1.Concat(data1).Concat(length2).Concat(data2).Concat(appendData).ToArray();
+
+            var (messages, length) = StorageApiService.SplitByteRead(dataConcat);
+            Assert.Equal(dataConcat.Length - appendData.Length, length);
+        }
+
+        [Fact]
+        public void MessageSplit_RequestedSizesIsSmallerThanMessageSize()
+        {
+            var message1 = new Message
+            {
+                Address = "Address1",
+                Measurement = 20
+            };
+            var message2 = new Message
+            {
+                Address = "Address1",
+                Measurement = 20
+            };
+
+            var data1 = LZ4MessagePackSerializer.Serialize<IMessage>(message1);
+            var length1 = new byte[10];
+            BitConverter.GetBytes(data1.Length).CopyTo(length1, 0);
+            var data2 = LZ4MessagePackSerializer.Serialize<IMessage>(message2);
+            var length2 = new byte[10];
+            BitConverter.GetBytes(data2.Length).CopyTo(length2, 0);
+
+            var dataConcat = length1.Concat(data1).Concat(length2).Concat(data2.Take(data2.Length - 5)).ToArray(); //Message is 5 bytes to big to fit for requested amount
+
+            var (messages, length) = StorageApiService.SplitByteRead(dataConcat);
+            Assert.Equal(length1.Length + data1.Length, length);
+        }
+
+        [Fact]
+        public void MessageSplit_LastMessage()
+        {
+            var message1 = new Message
+            {
+                Address = "Address1",
+                Measurement = 20
+            };
+
+            var data1 = LZ4MessagePackSerializer.Serialize<IMessage>(message1);
+            var length1 = new byte[10];
+            BitConverter.GetBytes(data1.Length).CopyTo(length1, 0);
+            var appendData = new byte[100];
+
+            var dataConcat = length1.Concat(data1).Concat(appendData).ToArray();
+
+            var (messages, length) = StorageApiService.SplitByteRead(dataConcat);
+            Assert.Equal(length1.Length + data1.Length, length);
         }
 
 
