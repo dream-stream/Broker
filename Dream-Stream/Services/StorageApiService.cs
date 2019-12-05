@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Dream_Stream.Models.Messages;
 using Dream_Stream.Models.Messages.ConsumerMessages;
@@ -21,7 +22,7 @@ namespace Dream_Stream.Services
         private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
         //private readonly Uri _storageApiAddress = new Uri("http://storage-api");
 
-        private readonly HttpClient _storageClient = new HttpClient();
+        private readonly HttpClient _storageClient;
 
         private readonly MemoryCache _cache = new MemoryCache(new MemoryCacheOptions()
         {
@@ -30,7 +31,12 @@ namespace Dream_Stream.Services
 
         public StorageApiService()
         {
-            _storageClient.BaseAddress = _storageApiAddress;
+            _storageClient = new HttpClient
+            {
+                BaseAddress = _storageApiAddress,
+                Timeout = Timeout.InfiniteTimeSpan
+            };
+
         }
         
         public async Task<long> Store(MessageHeader header, byte[] message)
