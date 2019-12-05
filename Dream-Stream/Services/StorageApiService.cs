@@ -18,8 +18,8 @@ namespace Dream_Stream.Services
             LabelNames = new[] { "TopicPartition" }
         });
 
-        //private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
-        private readonly Uri _storageApiAddress = new Uri("http://storage-api");
+        private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
+        //private readonly Uri _storageApiAddress = new Uri("http://storage-api");
 
         private readonly HttpClient _storageClient = new HttpClient();
 
@@ -62,7 +62,7 @@ namespace Dream_Stream.Services
 
             //Data not in cache read from file.
             var endpoint = $"/message?consumerGroup={consumerGroup}&topic={topic}&partition={partition}&offset={offset}&amount={amount}";
-            var response = await _storageClient.GetAsync(endpoint);
+            var response = await _storageClient.GetAsync(endpoint, HttpCompletionOption.ResponseContentRead);
             var header = new MessageHeader
             {
                 Topic = topic,
