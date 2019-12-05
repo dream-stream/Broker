@@ -1,16 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Dream_Stream.Models.Messages;
 using Dream_Stream.Models.Messages.ConsumerMessages;
 using MessagePack;
 using Microsoft.Extensions.Caching.Memory;
+using Prometheus;
 
 namespace Dream_Stream.Services
 {
     public class StorageApiService : IStorage
     {
+        private static readonly Counter CorruptedMessagesSizeInBytes = Metrics.CreateCounter("corrupted_messages_size_in_bytes", "", new CounterConfiguration
+        {
+            LabelNames = new[] { "TopicPartition" }
+        });
+
         //private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
         private readonly Uri _storageApiAddress = new Uri("http://storage-api");
 
@@ -28,7 +35,8 @@ namespace Dream_Stream.Services
         
         public async Task<long> Store(MessageHeader header, byte[] message)
         {
-            var response = await _storageClient.PostAsync($"/message?topic={header.Topic}&partition={header.Partition}&length={message.Length}", new ByteArrayContent(message));
+            var stream = new MemoryStream(message);
+            var response = await _storageClient.PostAsync($"/message?topic={header.Topic}&partition={header.Partition}&length={message.Length}", new StreamContent(stream));
 
             if (!response.IsSuccessStatusCode) //Retry
                 response = await _storageClient.PostAsync($"/message?topic={header.Topic}&partition={header.Partition}&length={message.Length}", new ByteArrayContent(message));
@@ -63,18 +71,22 @@ namespace Dream_Stream.Services
 
             if (!response.IsSuccessStatusCode) return (header, null, 0);
 
-            var dataRead = await response.Content.ReadAsByteArrayAsync();
+            var buffer = new byte[amount];
+            var stream = await response.Content.ReadAsStreamAsync();
+            await stream.ReadAsync(buffer, 0, amount);
 
-            var (messages, length) = SplitByteRead(dataRead);
+            var (messages, length) = SplitByteRead(buffer);
 
             if(length == 0) return (header, null, 0);
 
             foreach (var message in messages)
             {
-                if (message[^1] == 67) continue;
-                if (dataRead[0] != 0)
+                if (message[^1] != 67 && buffer[0] != 0)
+                {
+                    CorruptedMessagesSizeInBytes.WithLabels($"{topic}/{partition}").Inc(amount);
                     Console.WriteLine($"Corrupted data - Topic {topic} - Partition {partition}");
-                return (header, null, 0);
+                    return (header, null, 0);
+                }
             }
 
             return (header, messages, length);
