@@ -64,7 +64,11 @@ namespace Dream_Stream.Services
 
             if (!response.IsSuccessStatusCode) return (header, null, 0);
 
-            var (messages, length) = SplitByteRead(await response.Content.ReadAsByteArrayAsync());
+            var dataRead = await response.Content.ReadAsByteArrayAsync();
+
+            if (dataRead[^1] != 67) return (header, null, 0);
+
+            var (messages, length) = SplitByteRead(dataRead);
 
             return (header, messages, length);
         }
