@@ -12,8 +12,8 @@ namespace Dream_Stream.Services
 {
     public class StorageApiService : IStorage
     {
-        //private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
-        private readonly Uri _storageApiAddress = new Uri("http://storage-api");
+        private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
+        //private readonly Uri _storageApiAddress = new Uri("http://storage-api");
 
         private readonly HttpClient _storageClient = new HttpClient();
 
@@ -64,7 +64,11 @@ namespace Dream_Stream.Services
 
             if (!response.IsSuccessStatusCode) return (header, null, 0);
 
-            var (messages, length) = SplitByteRead(await response.Content.ReadAsByteArrayAsync());
+            var dataRead = await response.Content.ReadAsByteArrayAsync();
+
+            if (dataRead[^1] != 67) return (header, null, 0);
+
+            var (messages, length) = SplitByteRead(dataRead);
 
             return (header, messages, length);
         }
