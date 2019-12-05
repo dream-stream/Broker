@@ -16,21 +16,21 @@ namespace Dream_Stream.Services
     {
         private static readonly Counter MessageBatchesReceived = Metrics.CreateCounter("message_batches_received", "", new CounterConfiguration
         {
-            LabelNames = new[] { "Topic/partition" }
+            LabelNames = new[] { "Topic_partition" }
         });
         private static readonly Counter MessagesReceivedSizeInBytes = Metrics.CreateCounter("messages_received_size_in_bytes", "", new CounterConfiguration
         {
-            LabelNames = new[] { "Topic/partition" }
+            LabelNames = new[] { "Topic_partition" }
         });
 
         private static readonly Counter MessagesSentSizeInBytes = Metrics.CreateCounter("messages_sent_size_in_bytes", "", new CounterConfiguration
         {
-            LabelNames = new[] { "Topic/partition" }
+            LabelNames = new[] { "Topic_partition" }
         });
 
         private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.", new CounterConfiguration
         {
-            LabelNames = new[] { "Topic/partition" }
+            LabelNames = new[] { "Topic_partition" }
         });
         private readonly IStorage _storage;
         private static readonly SemaphoreSlim Lock = new SemaphoreSlim(1,1);
@@ -99,9 +99,9 @@ namespace Dream_Stream.Services
                             {
                                 case MessageContainer msg:
                                     await HandlePublishMessage(msg.Header, buf, webSocket);
-                                    MessagesReceivedSizeInBytes.WithLabels($"{msg.Header.Topic}/{msg.Header.Partition}").Inc(buf.Length);
-                                    MessageBatchesReceived.WithLabels($"{msg.Header.Topic}/{msg.Header.Partition}").Inc();
-                                    MessagesReceived.WithLabels($"{msg.Header.Topic}/{msg.Header.Partition}").Inc(msg.Messages.Count);
+                                    MessagesReceivedSizeInBytes.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(buf.Length);
+                                    MessageBatchesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc();
+                                    MessagesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(msg.Messages.Count);
                                     break;
                                 case MessageRequest msg:
                                     await HandleMessageRequest(msg, webSocket);
@@ -145,7 +145,7 @@ namespace Dream_Stream.Services
             var (header, messages, length) = await _storage.Read(request.ConsumerGroup, request.Topic, request.Partition, request.OffSet, request.ReadSize);
 
             var messageSizeInBytes = messages.Sum(x => x.Length);
-            MessagesSentSizeInBytes.WithLabels($"{request.Topic}/{request.Partition}").Inc(messageSizeInBytes);
+            MessagesSentSizeInBytes.WithLabels($"{request.Topic}_{request.Partition}").Inc(messageSizeInBytes);
             
 
             if (length == 0)
