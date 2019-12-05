@@ -65,13 +65,17 @@ namespace Dream_Stream.Services
 
             var dataRead = await response.Content.ReadAsByteArrayAsync();
 
-            if (dataRead[^1] != 67)
+            var (messages, length) = SplitByteRead(dataRead);
+
+            if(length == 0) return (header, null, 0);
+
+            foreach (var message in messages)
             {
-                Console.WriteLine($"Corrupted data - Topic {topic} - Partition {partition}");
+                if (message[^1] == 67) continue;
+                if (dataRead[0] != 0)
+                    Console.WriteLine($"Corrupted data - Topic {topic} - Partition {partition}");
                 return (header, null, 0);
             }
-
-            var (messages, length) = SplitByteRead(dataRead);
 
             return (header, messages, length);
         }

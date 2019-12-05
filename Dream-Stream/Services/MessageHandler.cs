@@ -16,21 +16,21 @@ namespace Dream_Stream.Services
     {
         private static readonly Counter MessageBatchesReceived = Metrics.CreateCounter("message_batches_received", "", new CounterConfiguration
         {
-            LabelNames = new[] { "Topic_partition" }
+            LabelNames = new[] { "TopicPartition" }
         });
         private static readonly Counter MessagesReceivedSizeInBytes = Metrics.CreateCounter("messages_received_size_in_bytes", "", new CounterConfiguration
         {
-            LabelNames = new[] { "Topic_partition" }
+            LabelNames = new[] { "TopicPartition" }
         });
 
         private static readonly Counter MessagesSentSizeInBytes = Metrics.CreateCounter("messages_sent_size_in_bytes", "", new CounterConfiguration
         {
-            LabelNames = new[] { "Topic_partition" }
+            LabelNames = new[] { "TopicPartition" }
         });
 
         private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.", new CounterConfiguration
         {
-            LabelNames = new[] { "Topic_partition" }
+            LabelNames = new[] { "TopicPartition" }
         });
         private readonly IStorage _storage;
         private static readonly SemaphoreSlim Lock = new SemaphoreSlim(1,1);
@@ -144,15 +144,14 @@ namespace Dream_Stream.Services
             
             var (header, messages, length) = await _storage.Read(request.ConsumerGroup, request.Topic, request.Partition, request.OffSet, request.ReadSize);
 
-            var messageSizeInBytes = messages.Sum(x => x.Length);
-            MessagesSentSizeInBytes.WithLabels($"{request.Topic}_{request.Partition}").Inc(messageSizeInBytes);
-            
-
             if (length == 0)
             {
                 await SendResponse(new NoNewMessage {Header = header}, webSocket);
                 return;
             }
+
+            var messageSizeInBytes = messages.Sum(x => x.Length);
+            MessagesSentSizeInBytes.WithLabels($"{request.Topic}_{request.Partition}").Inc(messageSizeInBytes);
 
             await SendResponse(new MessageRequestResponse
             {

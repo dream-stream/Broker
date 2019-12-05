@@ -161,7 +161,7 @@ namespace UnitTests
             var api = new StorageApiService();
 
 
-            for (var i = 11; i < 12; i++)
+            for (var i = 5; i < 6; i++)
             {
                 var length = 0;
                 var messagesRead = 0;
