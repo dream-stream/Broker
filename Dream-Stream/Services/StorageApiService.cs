@@ -19,8 +19,8 @@ namespace Dream_Stream.Services
             LabelNames = new[] { "TopicPartition" }
         });
 
-        private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
-        //private readonly Uri _storageApiAddress = new Uri("http://storage-api");
+        //private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
+        private readonly Uri _storageApiAddress = new Uri("http://storage-api");
 
         private readonly HttpClient _storageClient;
 
