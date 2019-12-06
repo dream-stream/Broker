@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Dream_Stream.Models.Messages;
@@ -34,7 +36,7 @@ namespace Dream_Stream.Services
             _storageClient = new HttpClient
             {
                 BaseAddress = _storageApiAddress,
-                Timeout = Timeout.InfiniteTimeSpan
+                Timeout = TimeSpan.FromSeconds(5)
             };
 
         }
@@ -65,37 +67,44 @@ namespace Dream_Stream.Services
             var cacheRead = ReadFromCache($"{topic}/{partition}", offset, amount);
             if (cacheRead.length != 0) return cacheRead;
 
-
-            //Data not in cache read from file.
-            var endpoint = $"/message?consumerGroup={consumerGroup}&topic={topic}&partition={partition}&offset={offset}&amount={amount}";
-            var response = await _storageClient.GetAsync(endpoint, HttpCompletionOption.ResponseContentRead);
+            var request =
+                WebRequest.Create(new Uri(
+                    $"http://localhost:5040/message?consumerGroup={consumerGroup}&topic={topic}&partition={partition}&offset={offset}&amount={amount}"));
+            var response = await request.GetResponseAsync();
             var header = new MessageHeader
             {
                 Topic = topic,
                 Partition = partition
             };
 
-            if (!response.IsSuccessStatusCode) return (header, null, 0);
-
-            var buffer = new byte[amount];
-            var stream = await response.Content.ReadAsStreamAsync();
-            await stream.ReadAsync(buffer, 0, amount);
-
-            var (messages, length) = SplitByteRead(buffer);
-
-            if(length == 0) return (header, null, 0);
-
-            foreach (var message in messages)
+            try
             {
-                if (message[^1] != 67 && buffer[0] != 0)
-                {
-                    CorruptedMessagesSizeInBytes.WithLabels($"{topic}/{partition}").Inc(amount);
-                    Console.WriteLine($"Corrupted data - Topic {topic} - Partition {partition}");
-                    return (header, null, 0);
-                }
-            }
+                var stream = response.GetResponseStream();
+                var reader = new BinaryReader(stream, Encoding.UTF8);
+                var buffer = reader.ReadBytes(amount);
 
-            return (header, messages, length);
+                var (messages, length) = SplitByteRead(buffer);
+
+                if (length == 0) return (header, null, 0);
+
+                foreach (var message in messages)
+                {
+                    if (message[^1] != 67 && message[0] != 0)
+                    {
+                        CorruptedMessagesSizeInBytes.WithLabels($"{topic}/{partition}").Inc(amount);
+                        Console.WriteLine($"Corrupted data - Topic {topic} - Partition {partition}");
+                        return (header, null, 0);
+                    }
+                }
+
+                return (header, messages, length);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Topic: {topic}, Partition: {partition}, Error: {e.Message}");
+                Console.WriteLine(e);
+                return (header, null, 0);
+            }
         }
 
         public async Task<OffsetResponse> ReadOffset(string consumerGroup, string topic, int partition)
@@ -148,7 +157,7 @@ namespace Dream_Stream.Services
 
         public static (List<byte[]> messages, int length) SplitByteRead(byte[] read)
         {
-            if (read[0] == 0 || read.Length < 10) return (null, 0);
+            if (read.Length < 10 || read[0] == 0) return (null, 0);
             
             var list = new List<byte[]>();
             const int messageHeaderSize = 10;

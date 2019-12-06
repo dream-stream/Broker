@@ -5,6 +5,7 @@
     <RootNamespace>Dream_Stream</RootNamespace>
     <UserSecretsId>3a598165-b7ee-4869-a404-a8afed8a682c</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <LangVersion>8</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
