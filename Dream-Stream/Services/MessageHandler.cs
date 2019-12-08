@@ -82,8 +82,9 @@ namespace Dream_Stream.Services
                         await Task.Delay(500);
                         for (var i = 0; i < tasks.Length; i++)
                         {
-                            
-                            Console.WriteLine($"Running loop - thread{i} status: {tasks[i].Status}");
+
+                            if (tasks[i].Status == TaskStatus.WaitingForActivation)
+                                tasks[i].Start();
                             if (tasks[i].Status != TaskStatus.RanToCompletion) continue;
                             taskIndex = i;
                             break;
