@@ -23,6 +23,7 @@ namespace Dream_Stream.Services
 
         //private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
         private readonly Uri _storageApiAddress = new Uri("http://storage-api");
+        //private readonly Uri _storageApiAddress = new Uri("http://worker2:30050");
 
         private readonly HttpClient _storageClient;
 
@@ -36,7 +37,7 @@ namespace Dream_Stream.Services
             _storageClient = new HttpClient
             {
                 BaseAddress = _storageApiAddress,
-                Timeout = TimeSpan.FromSeconds(5)
+                Timeout = TimeSpan.FromSeconds(10)
             };
 
         }
@@ -68,8 +69,7 @@ namespace Dream_Stream.Services
             if (cacheRead.length != 0) return cacheRead;
 
             var request =
-                WebRequest.Create(new Uri(
-                    $"http://localhost:5040/message?consumerGroup={consumerGroup}&topic={topic}&partition={partition}&offset={offset}&amount={amount}"));
+                WebRequest.Create(new Uri(_storageApiAddress, $"/message?consumerGroup={consumerGroup}&topic={topic}&partition={partition}&offset={offset}&amount={amount}"));
             var response = await request.GetResponseAsync();
             var header = new MessageHeader
             {
@@ -91,8 +91,10 @@ namespace Dream_Stream.Services
                 {
                     if (message[^1] != 67 && message[0] != 0)
                     {
-                        CorruptedMessagesSizeInBytes.WithLabels($"{topic}/{partition}").Inc(amount);
+                        CorruptedMessagesSizeInBytes.WithLabels($"{topic}/{partition}").Inc(buffer.Length);
                         Console.WriteLine($"Corrupted data - Topic {topic} - Partition {partition}");
+                        File.WriteAllText($"/mnt/data/corrput.txt", string.Join(",", buffer));
+                        (messages, length) = SplitByteRead(buffer);
                         return (header, null, 0);
                     }
                 }

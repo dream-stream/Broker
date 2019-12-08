@@ -167,7 +167,7 @@ namespace UnitTests
                 var messagesRead = 0;
                 while (true)
                 {
-                    var (header, messages, length1) = await api.Read(consumerGroup, topic, i, length, 1024*1000);
+                    var (header, messages, length1) = await api.Read(consumerGroup, topic, i, length, 1024*900);
                     length += length1;
                     if (length1 == 0) break;
 
@@ -193,15 +193,16 @@ namespace UnitTests
             var messagesPerPartition = new int[partitionCount];
             var lengthPerPartition = new int[partitionCount];
             var totalMessage = 0;
+            var api = new StorageApiService();
 
-            Parallel.For(0, partitionCount, async i =>
+            var tasks = Enumerable.Range(0, partitionCount).Select(async i =>
             {
                 var length = 0;
                 var messagesRead = 0;
 
                 while (true)
                 {
-                    var (header, messages, length1) = await _storage.Read(consumerGroup, topic, i, length, 6000);
+                    var (header, messages, length1) = await api.Read(consumerGroup, topic, i, length, 1024 * 900);
                     length += length1;
                     lengthPerPartition[i] += length1;
                     if (length1 == 0) break;
@@ -219,14 +220,14 @@ namespace UnitTests
                 _testOutputHelper.WriteLine($"{messagesRead} batched messages read from partition {i}");
             });
 
-            await Task.Delay(1000); //Allow threads to finish
+            await Task.WhenAll(tasks);
 
-            for (int i = 0; i < partitionCount; i++)
+            for (var i = 0; i < partitionCount; i++)
             {
                 _testOutputHelper.WriteLine($"{messagesPerPartition[i]} messages read from partition {i}");
                 totalMessage += messagesPerPartition[i];
             }
-            for (int i = 0; i < partitionCount; i++)
+            for (var i = 0; i < partitionCount; i++)
             {
                 _testOutputHelper.WriteLine($"{lengthPerPartition[i]} length of partition {i}");
             }
