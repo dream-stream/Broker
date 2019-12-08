@@ -72,8 +72,6 @@ namespace Dream_Stream.Services
                     var localResult = result;
                     var localBuffer = new byte[buffer.Length];
                     buffer.CopyTo(localBuffer, 0);
-                    var debugCounter = 0;
-
 
                     if (localResult.CloseStatus.HasValue) break;
 
@@ -81,14 +79,11 @@ namespace Dream_Stream.Services
 
                     while (taskIndex == -1)
                     {
-                        await Task.Delay(20);
+                        await Task.Delay(500);
                         for (var i = 0; i < tasks.Length; i++)
                         {
-                            if (++debugCounter % 1000 == 0)
-                            {
-                                debugCounter = 0;
-                                Console.WriteLine($"Running loop - thread{i} status: {tasks[i].Status}");
-                            }
+                            
+                            Console.WriteLine($"Running loop - thread{i} status: {tasks[i].Status}");
                             if (tasks[i].Status != TaskStatus.RanToCompletion) continue;
                             taskIndex = i;
                             break;
