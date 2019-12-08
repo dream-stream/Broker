@@ -29,7 +29,7 @@ namespace Dream_Stream
 
             app.UseWebSockets(new WebSocketOptions
             {
-                KeepAliveInterval = TimeSpan.FromSeconds(120),
+                KeepAliveInterval = TimeSpan.FromSeconds(5),
                 ReceiveBufferSize = 1024 * 900
             });
 
