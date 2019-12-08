@@ -48,7 +48,12 @@ namespace Dream_Stream.Services
             var response = await _storageClient.PostAsync($"/message?topic={header.Topic}&partition={header.Partition}&length={message.Length}", new StreamContent(stream));
 
             if (!response.IsSuccessStatusCode) //Retry
-                response = await _storageClient.PostAsync($"/message?topic={header.Topic}&partition={header.Partition}&length={message.Length}", new ByteArrayContent(message));
+            {
+                Console.WriteLine($"Retry store for topic {header.Topic}, partition {header.Partition}");
+                response = await _storageClient.PostAsync(
+                    $"/message?topic={header.Topic}&partition={header.Partition}&length={message.Length}",
+                    new ByteArrayContent(message));
+            }
 
             if (!long.TryParse(await response.Content.ReadAsStringAsync(), out var offset)) return 0;
 
