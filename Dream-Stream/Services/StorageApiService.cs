@@ -37,7 +37,7 @@ namespace Dream_Stream.Services
             _storageClient = new HttpClient
             {
                 BaseAddress = _storageApiAddress,
-                Timeout = TimeSpan.FromSeconds(10)
+                Timeout = Timeout.InfiniteTimeSpan
             };
 
         }
