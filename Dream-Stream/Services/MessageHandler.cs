@@ -86,6 +86,11 @@ namespace Dream_Stream.Services
                         {
                             if (tasks[i].Status != TaskStatus.RanToCompletion) continue;
                             taskIndex = i;
+                            if (++debugCounter % 1000 == 0)
+                            {
+                                debugCounter = 0;
+                                Console.WriteLine($"Running loop - thread{i} status: {tasks[i].Status}");
+                            }
                             break;
                         }
                     }
@@ -117,12 +122,6 @@ namespace Dream_Stream.Services
                         catch (Exception e)
                         {
                             Console.WriteLine(e);
-                        }
-
-                        if(++debugCounter % 1000 == 0)
-                        {
-                            debugCounter = 0;
-                            Console.WriteLine("Still alive");
                         }
                     });
                 } while (!result.CloseStatus.HasValue);
@@ -180,7 +179,7 @@ namespace Dream_Stream.Services
         private static async Task SendResponse(IMessage message, WebSocket webSocket)
         {
             await Lock.WaitAsync();
-            await webSocket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize(message)), WebSocketMessageType.Binary, false,
+            await webSocket.SendAsync(new ArraySegment<byte>(LZ4MessagePackSerializer.Serialize(message)), WebSocketMessageType.Binary, true,
                 CancellationToken.None);
             Lock.Release();
         }
