@@ -84,13 +84,13 @@ namespace Dream_Stream.Services
                         await Task.Delay(20);
                         for (var i = 0; i < tasks.Length; i++)
                         {
-                            if (tasks[i].Status != TaskStatus.RanToCompletion) continue;
-                            taskIndex = i;
                             if (++debugCounter % 1000 == 0)
                             {
                                 debugCounter = 0;
                                 Console.WriteLine($"Running loop - thread{i} status: {tasks[i].Status}");
                             }
+                            if (tasks[i].Status != TaskStatus.RanToCompletion) continue;
+                            taskIndex = i;
                             break;
                         }
                     }
