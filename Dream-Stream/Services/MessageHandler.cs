@@ -49,21 +49,7 @@ namespace Dream_Stream.Services
             var buffer = new byte[1024 * 900];
             WebSocketReceiveResult result = null;
             Console.WriteLine($"Handling message from: {context.Connection.RemoteIpAddress}");
-            var tasks = new []
-            {
-                Task.CompletedTask,
-                Task.CompletedTask,
-                Task.CompletedTask,
-                Task.CompletedTask,
-                Task.CompletedTask,
-                Task.CompletedTask,
-                Task.CompletedTask,
-                Task.CompletedTask,
-                Task.CompletedTask,
-                Task.CompletedTask
-            };
-
-
+            
             try
             {
                 do
@@ -75,20 +61,8 @@ namespace Dream_Stream.Services
 
                     if (localResult.CloseStatus.HasValue) break;
 
-                    var taskIndex = -1;
-
-                    while (taskIndex == -1)
-                    {
-                        for (var i = 0; i < tasks.Length; i++)
-                        {
-                            Console.WriteLine($"Task{i} - {tasks[i].Status}");
-                            if (tasks[i].Status != TaskStatus.RanToCompletion) continue;
-                            taskIndex = i;
-                            break;
-                        }
-                    }
-
-                    tasks[taskIndex] = Task.Run(async () =>
+                    /*tasks[taskIndex] =*/ 
+                    ThreadPool.QueueUserWorkItem(async x =>
                     {
                         //TODO Nicklas should make this more performant by sending size from producer.
                         var buf = localBuffer.Take(localResult.Count).ToArray();
@@ -117,6 +91,8 @@ namespace Dream_Stream.Services
                             Console.WriteLine(e);
                         }
                     });
+
+                    
                 } while (!result.CloseStatus.HasValue);
             }
             catch (Exception e)
