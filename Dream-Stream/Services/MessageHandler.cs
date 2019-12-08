@@ -1,11 +1,9 @@
 ﻿using Dream_Stream.Models.Messages;
 using Dream_Stream.Models.Messages.ConsumerMessages;
-using Dream_Stream.Models.Messages.ProducerMessages;
 using MessagePack;
 using Microsoft.AspNetCore.Http;
 using Prometheus;
 using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
@@ -61,7 +59,6 @@ namespace Dream_Stream.Services
 
                     if (localResult.CloseStatus.HasValue) break;
 
-                    /*tasks[taskIndex] =*/ 
                     ThreadPool.QueueUserWorkItem(async x =>
                     {
                         //TODO Nicklas should make this more performant by sending size from producer.
