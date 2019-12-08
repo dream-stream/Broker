@@ -59,37 +59,32 @@ namespace Dream_Stream.Services
 
                     if (localResult.CloseStatus.HasValue) break;
 
-                    ThreadPool.QueueUserWorkItem(async x =>
+                    //TODO Nicklas should make this more performant by sending size from producer.
+                    var buf = localBuffer.Take(localResult.Count).ToArray();
+                    try
                     {
-                        //TODO Nicklas should make this more performant by sending size from producer.
-                        var buf = localBuffer.Take(localResult.Count).ToArray();
-                        try
-                        {
-                            var message = LZ4MessagePackSerializer.Deserialize<IMessage>(buf);
+                        var message = LZ4MessagePackSerializer.Deserialize<IMessage>(buf);
 
-                            switch (message)
-                            {
-                                case MessageContainer msg:
-                                    await HandlePublishMessage(msg.Header, buf, webSocket);
-                                    MessagesReceivedSizeInBytes.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(buf.Length);
-                                    MessageBatchesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc();
-                                    MessagesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(msg.Messages.Count);
-                                    break;
-                                case MessageRequest msg:
-                                    await HandleMessageRequest(msg, webSocket);
-                                    break;
-                                case OffsetRequest msg:
-                                    await HandleOffsetRequest(msg, webSocket);
-                                    break;
-                            }
-                        }
-                        catch (Exception e)
+                        switch (message)
                         {
-                            Console.WriteLine(e);
+                            case MessageContainer msg:
+                                await HandlePublishMessage(msg.Header, buf, webSocket);
+                                MessagesReceivedSizeInBytes.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(buf.Length);
+                                MessageBatchesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc();
+                                MessagesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(msg.Messages.Count);
+                                break;
+                            case MessageRequest msg:
+                                await HandleMessageRequest(msg, webSocket);
+                                break;
+                            case OffsetRequest msg:
+                                await HandleOffsetRequest(msg, webSocket);
+                                break;
                         }
-                    });
-
-                    
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                    }
                 } while (!result.CloseStatus.HasValue);
             }
             catch (Exception e)
