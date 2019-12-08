@@ -79,7 +79,6 @@ namespace Dream_Stream.Services
 
                     while (taskIndex == -1)
                     {
-                        await Task.Delay(500);
                         for (var i = 0; i < tasks.Length; i++)
                         {
 
