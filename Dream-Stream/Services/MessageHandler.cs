@@ -173,7 +173,7 @@ namespace Dream_Stream.Services
         {
             await _storage.Store(header, messages);
             
-            await SendResponse(new MessageReceived(), webSocket);
+            //await SendResponse(new MessageReceived(), webSocket);
         }
 
         private static async Task SendResponse(IMessage message, WebSocket webSocket)
