@@ -82,8 +82,6 @@ namespace Dream_Stream.Services
                         for (var i = 0; i < tasks.Length; i++)
                         {
                             Console.WriteLine($"Task{i} - {tasks[i].Status}");
-                            if (tasks[i].Status == TaskStatus.WaitingForActivation)
-                                tasks[i].Start();
                             if (tasks[i].Status != TaskStatus.RanToCompletion) continue;
                             taskIndex = i;
                             break;
