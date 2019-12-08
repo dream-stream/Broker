@@ -5,6 +5,7 @@ using MessagePack;
 using Microsoft.AspNetCore.Http;
 using Prometheus;
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
@@ -71,14 +72,16 @@ namespace Dream_Stream.Services
                     var localResult = result;
                     var localBuffer = new byte[buffer.Length];
                     buffer.CopyTo(localBuffer, 0);
-                    
-                    
+                    var debugCounter = 0;
+
+
                     if (localResult.CloseStatus.HasValue) break;
 
                     var taskIndex = -1;
 
                     while (taskIndex == -1)
                     {
+                        await Task.Delay(20);
                         for (var i = 0; i < tasks.Length; i++)
                         {
                             if (tasks[i].Status != TaskStatus.RanToCompletion) continue;
@@ -114,6 +117,12 @@ namespace Dream_Stream.Services
                         catch (Exception e)
                         {
                             Console.WriteLine(e);
+                        }
+
+                        if(++debugCounter % 1000 == 0)
+                        {
+                            debugCounter = 0;
+                            Console.WriteLine("Still alive");
                         }
                     });
                 } while (!result.CloseStatus.HasValue);
