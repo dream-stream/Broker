@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Dream_Stream.Extensions;
 
 namespace Dream_Stream.Services
 {
@@ -54,25 +55,22 @@ namespace Dream_Stream.Services
                 {
                     result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                     var localResult = result;
-                    var localBuffer = new byte[buffer.Length];
-                    buffer.CopyTo(localBuffer, 0);
-
+                    
                     if (localResult.CloseStatus.HasValue) break;
 
                     
                     ThreadPool.QueueUserWorkItem(async x =>
                     {
-                        //TODO Nicklas should make this more performant by sending size from producer.
-                        var buf = localBuffer.Take(localResult.Count).ToArray();
+                        var localBuffer = buffer.SubArray(0, localResult.Count);
                         try
                         {
-                            var message = LZ4MessagePackSerializer.Deserialize<IMessage>(buf);
+                            var message = LZ4MessagePackSerializer.Deserialize<IMessage>(localBuffer);
 
                             switch (message)
                             {
                                 case MessageContainer msg:
-                                    await HandlePublishMessage(msg.Header, buf, webSocket);
-                                    MessagesReceivedSizeInBytes.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(buf.Length);
+                                    await HandlePublishMessage(msg.Header, localBuffer, webSocket);
+                                    MessagesReceivedSizeInBytes.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(localBuffer.Length);
                                     MessageBatchesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc();
                                     MessagesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(msg.Messages.Count);
                                     break;

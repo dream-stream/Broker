@@ -98,8 +98,7 @@ namespace Dream_Stream.Services
                     {
                         CorruptedMessagesSizeInBytes.WithLabels($"{topic}/{partition}").Inc(buffer.Length);
                         Console.WriteLine($"Corrupted data - Topic {topic} - Partition {partition}");
-                        File.WriteAllText($"/mnt/data/corrput.txt", string.Join(",", buffer));
-                        (messages, length) = SplitByteRead(buffer);
+                        File.WriteAllText($"/mnt/data/corrupt.txt", string.Join(",", buffer));
                         return (header, null, 0);
                     }
                 }
