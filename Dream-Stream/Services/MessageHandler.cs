@@ -62,8 +62,9 @@ namespace Dream_Stream.Services
                         var localBuffer = buffer.SubArray(0, localResult.Count);
                         try
                         {
-                            var message = LZ4MessagePackSerializer.Deserialize<IMessage>(localBuffer);
 
+                            var message = LZ4MessagePackSerializer.Deserialize<IMessage>(localBuffer);
+                        
                             switch (message)
                             {
                                 case MessageContainer msg:
@@ -82,7 +83,10 @@ namespace Dream_Stream.Services
                         }
                         catch (Exception e)
                         {
-                            Console.WriteLine(e);
+                            if (e.Message.Contains("corrupt"))
+                                StorageApiService.CorruptedMessagesSizeInBytes.WithLabels("Unknown").Inc(localResult.Count);
+                            else
+                                Console.WriteLine(e);
                         }
                     });
 

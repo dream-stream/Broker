@@ -19,7 +19,7 @@ namespace Dream_Stream.Services
     {
         private static readonly ConcurrentDictionary<string, long> Offsets = new ConcurrentDictionary<string, long>();
 
-        private static readonly Counter CorruptedMessagesSizeInBytes = Metrics.CreateCounter("corrupted_messages_size_in_bytes", "", new CounterConfiguration
+        public static readonly Counter CorruptedMessagesSizeInBytes = Metrics.CreateCounter("corrupted_messages_size_in_bytes", "", new CounterConfiguration
         {
             LabelNames = new[] { "TopicPartition" }
         });
