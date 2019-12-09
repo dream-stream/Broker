@@ -55,10 +55,8 @@ namespace Dream_Stream.Services
                 {
                     result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                     var localResult = result;
-                    
                     if (localResult.CloseStatus.HasValue) break;
 
-                    
                     ThreadPool.QueueUserWorkItem(async x =>
                     {
                         var localBuffer = buffer.SubArray(0, localResult.Count);

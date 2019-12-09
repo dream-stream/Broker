@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -16,6 +17,8 @@ namespace Dream_Stream.Services
 {
     public class StorageApiService : IStorage
     {
+        private static readonly ConcurrentDictionary<string, long> Offsets = new ConcurrentDictionary<string, long>();
+
         private static readonly Counter CorruptedMessagesSizeInBytes = Metrics.CreateCounter("corrupted_messages_size_in_bytes", "", new CounterConfiguration
         {
             LabelNames = new[] { "TopicPartition" }
@@ -63,12 +66,17 @@ namespace Dream_Stream.Services
                 Size = message.Length
             };
             _cache.Set($"{header.Topic}/{header.Partition}/{offset}", message, options);
+            Offsets.TryAdd($"{header.Topic}/{header.Partition}", offset);
 
             return offset;
         }
 
         public async Task<(MessageHeader header, List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)
         {
+            if (Offsets.TryGetValue($"{topic}/{partition}", out var latestOffset) && latestOffset == offset) 
+                return (new MessageHeader {Topic = topic, Partition = partition}, null, 0);
+            
+
             //Check if the requested data is in cache.
             var cacheRead = ReadFromCache($"{topic}/{partition}", offset, amount);
             if (cacheRead.length != 0) return cacheRead;
