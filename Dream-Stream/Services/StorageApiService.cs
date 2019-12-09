@@ -15,7 +15,7 @@ using Prometheus;
 
 namespace Dream_Stream.Services
 {
-    public class StorageApiService : IStorage
+    public class StorageApiService// : IStorage
     {
         private static readonly ConcurrentDictionary<string, long> Offsets = new ConcurrentDictionary<string, long>();
 
@@ -24,8 +24,8 @@ namespace Dream_Stream.Services
             LabelNames = new[] { "TopicPartition" }
         });
 
-        //private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
-        private readonly Uri _storageApiAddress = new Uri("http://storage-api");
+        private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
+        //private readonly Uri _storageApiAddress = new Uri("http://storage-api");
         //private readonly Uri _storageApiAddress = new Uri("http://worker2:30050");
 
         private readonly HttpClient _storageClient;
@@ -42,20 +42,18 @@ namespace Dream_Stream.Services
                 BaseAddress = _storageApiAddress,
                 Timeout = Timeout.InfiniteTimeSpan
             };
-
         }
         
-        public async Task<long> Store(MessageHeader header, byte[] message)
+        public async Task<long> Store(string topic, int partition, int length, Stream stream)
         {
-            var stream = new MemoryStream(message);
-            var response = await _storageClient.PostAsync($"/message?topic={header.Topic}&partition={header.Partition}&length={message.Length}", new StreamContent(stream));
+            var response = await _storageClient.PostAsync($"/message?topic={topic}&partition={partition}&length={length}", new StreamContent(stream));
 
             if (!response.IsSuccessStatusCode) //Retry
             {
-                Console.WriteLine($"Retry store for topic {header.Topic}, partition {header.Partition}");
+                Console.WriteLine($"Retry store for topic {topic}, partition {partition}");
                 response = await _storageClient.PostAsync(
-                    $"/message?topic={header.Topic}&partition={header.Partition}&length={message.Length}",
-                    new ByteArrayContent(message));
+                    $"/message?topic={topic}&partition={partition}&length={stream.Length}",
+                    new StreamContent(stream));
             }
 
             if (!long.TryParse(await response.Content.ReadAsStringAsync(), out var offset)) return 0;
@@ -63,10 +61,10 @@ namespace Dream_Stream.Services
 
             var options = new MemoryCacheEntryOptions
             {
-                Size = message.Length
+                Size = stream.Length
             };
-            _cache.Set($"{header.Topic}/{header.Partition}/{offset}", message, options);
-            Offsets.TryAdd($"{header.Topic}/{header.Partition}", offset);
+            _cache.Set($"{topic}/{partition}/{offset}", stream, options);
+            Offsets.TryAdd($"{topic}/{partition}", offset);
 
             return offset;
         }
