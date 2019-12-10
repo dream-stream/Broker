@@ -35,6 +35,39 @@ namespace Dream_Stream
                 endpoints.MapControllers();
             });
 
+            app.UseWebSockets(new WebSocketOptions
+            {
+                KeepAliveInterval = TimeSpan.FromSeconds(120),
+                ReceiveBufferSize = 1024 * 900
+            });
+
+            app.Use(async (context, next) =>
+            {
+                if (context.Request.Path == "/ws")
+                {
+                    if (context.WebSockets.IsWebSocketRequest)
+                    {
+                        try
+                        {
+                            var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+                            await new MessageHandler().Handle(context, webSocket);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"Connection closed from startup with exception: {e}");
+                        }
+                    }
+                    else
+                    {
+                        context.Response.StatusCode = 400;
+                    }
+                }
+                else
+                {
+                    await next();
+                }
+            });
+
             var client = env.IsDevelopment() ? new EtcdClient("http://localhost") : new EtcdClient("http://etcd");
             var me = Guid.NewGuid().ToString();
 
