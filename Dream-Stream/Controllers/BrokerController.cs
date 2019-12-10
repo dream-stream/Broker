@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Dream_Stream.Models.Messages;
@@ -52,30 +53,39 @@ namespace Dream_Stream.Controllers
         [HttpGet]
         public async Task Consume([FromQuery]string consumerGroup, string topic, int partition, long offset, int amount)
         {
-            if (offset == -1)
-                offset = (await _storage.ReadOffset(consumerGroup, topic, partition)).Offset;
-
-            var (header, messages, length) = await _storage.Read(consumerGroup, topic, partition, offset, amount);
-
-            if (length == 0)
+            try
             {
-                Response.StatusCode = 204;
-                return;
+                if (offset == -1)
+                    offset = (await _storage.ReadOffset(consumerGroup, topic, partition)).Offset;
+
+                var (header, messages, length) = await _storage.Read(consumerGroup, topic, partition, offset, amount);
+
+                if (length == 0)
+                {
+                    Response.StatusCode = 204;
+                    return;
+                }
+
+                var messageSizeInBytes = messages.Sum(x => x.Length);
+                MessagesSentSizeInBytes.WithLabels($"{topic}_{partition}").Inc(messageSizeInBytes);
+
+                var responseData = LZ4MessagePackSerializer.Serialize<IMessage>(new MessageRequestResponse
+                {
+                    Header = header,
+                    Messages = messages,
+                    Offset = length
+                });
+
+                Response.Headers.Add("Content-Length", responseData.Length.ToString());
+                Response.StatusCode = 200;
+                await Response.Body.WriteAsync(responseData, 0, responseData.Length);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
             }
 
-            var messageSizeInBytes = messages.Sum(x => x.Length);
-            MessagesSentSizeInBytes.WithLabels($"{topic}_{partition}").Inc(messageSizeInBytes);
-
-            var responseData = LZ4MessagePackSerializer.Serialize<IMessage>(new MessageRequestResponse
-            {
-                Header = header,
-                Messages = messages,
-                Offset = length
-            });
-
-            Response.Headers.Add("Content-Length", responseData.Length.ToString());
-            Response.StatusCode = 200;
-            Response.Body = new MemoryStream(responseData);
         }
     }
 }

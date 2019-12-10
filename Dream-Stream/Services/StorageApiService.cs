@@ -30,7 +30,7 @@ namespace Dream_Stream.Services
 
         private readonly HttpClient _storageClient;
 
-        private readonly MemoryCache _cache = new MemoryCache(new MemoryCacheOptions()
+        private static readonly MemoryCache Cache = new MemoryCache(new MemoryCacheOptions
         {
             SizeLimit = 1000000000 //1GB
         });
@@ -46,14 +46,19 @@ namespace Dream_Stream.Services
         
         public async Task<long> Store(string topic, int partition, int length, Stream stream)
         {
-            var response = await _storageClient.PostAsync($"/message?topic={topic}&partition={partition}&length={length}", new StreamContent(stream));
+            var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Seek(0, SeekOrigin.Begin);
+
+            var response = await _storageClient.PostAsync($"/message?topic={topic}&partition={partition}&length={length}", new StreamContent(ms));
 
             if (!response.IsSuccessStatusCode) //Retry
             {
                 Console.WriteLine($"Retry store for topic {topic}, partition {partition}");
+                ms.Seek(0, SeekOrigin.Begin);
                 response = await _storageClient.PostAsync(
-                    $"/message?topic={topic}&partition={partition}&length={stream.Length}",
-                    new StreamContent(stream));
+                    $"/message?topic={topic}&partition={partition}&length={length}",
+                    new StreamContent(ms));
             }
 
             if (!long.TryParse(await response.Content.ReadAsStringAsync(), out var offset)) return 0;
@@ -61,17 +66,18 @@ namespace Dream_Stream.Services
 
             var options = new MemoryCacheEntryOptions
             {
-                Size = stream.Length
+                Size = length
             };
-            _cache.Set($"{topic}/{partition}/{offset}", stream, options);
-            Offsets.TryAdd($"{topic}/{partition}", offset);
+            ms.Seek(0, SeekOrigin.Begin);
+            Cache.Set($"{topic}/{partition}/{offset}", ms.ToArray(), options);
+            Offsets.AddOrUpdate($"{topic}/{partition}", x => offset, (x, y) => offset);
 
             return offset;
         }
 
         public async Task<(MessageHeader header, List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)
         {
-            if (Offsets.TryGetValue($"{topic}/{partition}", out var latestOffset) && latestOffset == offset) 
+            if (Offsets.TryGetValue($"{topic}/{partition}", out var latestOffset) && latestOffset < offset) 
                 return (new MessageHeader {Topic = topic, Partition = partition}, null, 0);
             
 
@@ -131,9 +137,8 @@ namespace Dream_Stream.Services
                 Offset = 0
             };
 
-            var offset = 0L;
-            if (!response.IsSuccessStatusCode && !long.TryParse(await response.Content.ReadAsStringAsync(), out offset)) return offsetResponse;
-
+            if (!response.IsSuccessStatusCode || !long.TryParse(await response.Content.ReadAsStringAsync(), out var offset)) return offsetResponse;
+            
             offsetResponse.Offset = offset;
             return offsetResponse;
         }
@@ -146,9 +151,9 @@ namespace Dream_Stream.Services
 
             while (true)
             {
-                if (_cache.TryGetValue($"{path}/{offset}", out byte[] item))
+                if (Cache.TryGetValue($"{path}/{offset}", out byte[] item))
                 {
-                    if (response.length + item.Length > amount) return response;
+                    if (response.length + item.Length + 10 > amount) return response;
 
                     if (getHeader)
                     {
@@ -157,8 +162,8 @@ namespace Dream_Stream.Services
                     }
 
                     response.messages.Add(item);
-                    response.length += item.Length;
-                    offset += item.Length;
+                    response.length += item.Length + 10;
+                    offset += item.Length + 10;
                 }
                 else
                 {
