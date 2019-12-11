@@ -42,20 +42,16 @@ namespace Dream_Stream.Services
                 {
                     result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                     if (result.CloseStatus.HasValue) break;
-
                     var buf = buffer.Take(result.Count).ToArray();
-
-                    var message = LZ4MessagePackSerializer.Deserialize<IMessage>(buf);
-
-                    switch (message)
+                    if(LZ4MessagePackSerializer.Deserialize<IMessage>(buf) is MessageContainer message)
                     {
-                        case MessageContainer msg:
-                            await HandlePublishMessage(msg.Header, buf, webSocket);
-                            MessageBatchesReceived.WithLabels(msg.Header.Topic).Inc();
-                            MessagesReceived.Inc(msg.Messages.Count);
-                            break;
+                        ThreadPool.QueueUserWorkItem(async x =>
+                        {
+                            await HandlePublishMessage(message.Header, buf, webSocket);
+                            MessageBatchesReceived.WithLabels(message.Header.Topic).Inc();
+                            MessagesReceived.Inc(message.Messages.Count);
+                        });
                     }
-
                 } while (!result.CloseStatus.HasValue);
             }
             catch (Exception e)
