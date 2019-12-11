@@ -20,7 +20,7 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: broker
-        image: dreamstream/broker:235
+        image: dreamstream/broker:236
         ports:
         - containerPort: 80
           name: broker
@@ -29,22 +29,10 @@ spec:
           value: "http://*:80"
         - name: STORAGE_METHOD
           value: "API"
-      #   volumeMounts:
-      #   - name: file-writing
-      #     mountPath: /mnt/data
-      # volumes:
-      # - name: file-writing
-      #   persistentVolumeClaim:
-      #     claimName: broker-claim
-# ---
-# kind: PersistentVolumeClaim
-# apiVersion: v1
-# metadata:
-#   name: broker-claim
-# spec:
-#   storageClassName: csi-cephfs
-#   accessModes:
-#     - ReadWriteMany
-#   resources:
-#     requests:
-#       storage: 3Gi
+        resources:
+          requests:
+            memory: "500Mi"
+            cpu: "500m"
+          limits:
+            memory: "500Mi"
+            cpu: "500m"

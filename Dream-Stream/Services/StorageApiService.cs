@@ -32,7 +32,7 @@ namespace Dream_Stream.Services
 
         private static readonly MemoryCache Cache = new MemoryCache(new MemoryCacheOptions
         {
-            SizeLimit = 1000000000 //1GB
+            SizeLimit = 350000000 //350MB
         });
 
         public StorageApiService()
