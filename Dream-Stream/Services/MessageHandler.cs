@@ -33,9 +33,8 @@ namespace Dream_Stream.Services
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
-            var buffer = new byte[1024 * 6];
+            var buffer = new byte[1024 * 900];
             Console.WriteLine($"Handling message from: {context.Connection.RemoteIpAddress}");
-
             try
             {
                 WebSocketReceiveResult result;
@@ -46,8 +45,7 @@ namespace Dream_Stream.Services
 
                     var buf = buffer.Take(result.Count).ToArray();
 
-                    var message =
-                        LZ4MessagePackSerializer.Deserialize<IMessage>(buf);
+                    var message = LZ4MessagePackSerializer.Deserialize<IMessage>(buf);
 
                     switch (message)
                     {
