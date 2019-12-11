@@ -20,14 +20,17 @@ namespace Dream_Stream
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public async void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public async void Configure(IApplicationBuilder app, IWebHostEnvironment env, IHostApplicationLifetime appLifeTime)
         {
+            
             if (env.IsDevelopment()) app.UseDeveloperExceptionPage();
+
+            
 
             app.UseMetricServer();
 
             app.UseRouting();
-
+            
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
@@ -77,6 +80,12 @@ namespace Dream_Stream
 
             var topicList = new TopicList(client, me);
             await topicList.SetupTopicListWatch();
+
+            appLifeTime.ApplicationStopping.Register(() =>
+            {
+                brokerTable.Shutdown();
+                topicList.Shutdown();
+            });
         }
     }
 }

@@ -45,6 +45,12 @@ namespace Dream_Stream.Services
             _timer = new Timer(LeaseKeepAlive, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
         }
 
+        public void Shutdown()
+        {
+            _timer.Dispose();
+            _client.Delete(_key.ToStringUtf8());
+        }
+
         private void LeaseKeepAlive(object state)
         {
             _client.LeaseKeepAlive(new LeaseKeepAliveRequest{ID = _leaseId}, KeepAliveResponseHandler, CancellationToken.None);

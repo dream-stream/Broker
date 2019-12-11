@@ -52,7 +52,7 @@ namespace Dream_Stream.Services
                 LeaderHandler();
                 while (_leader)
                 {
-                    Thread.Sleep(500);
+                    await Task.Delay(500);
                     _client.LeaseKeepAlive(new LeaseKeepAliveRequest { ID = lease.ID }, HandleLeaseKeepAliveRequest, CancellationToken.None);
                 }
             }
@@ -116,6 +116,15 @@ namespace Dream_Stream.Services
                 }
             });
             return transactionAsync.Succeeded;
+        }
+
+        public void Shutdown()
+        {
+            if (_leader)
+            {
+                _leader = false;
+                _client.Delete(_leaderKey);
+            }
         }
     }
 }

@@ -20,7 +20,7 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: broker
-        image: dreamstream/broker:244
+        image: dreamstream/broker:245
         ports:
         - containerPort: 80
           name: broker
@@ -31,8 +31,8 @@ spec:
           value: "API"
         resources:
           requests:
-            memory: "500Mi"
-            cpu: "500m"
+            memory: "1000Mi"
+            cpu: "1000m"
           limits:
-            memory: "500Mi"
-            cpu: "500m"
+            memory: "1000Mi"
+            cpu: "1000m"
