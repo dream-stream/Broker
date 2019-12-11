@@ -33,30 +33,37 @@ namespace Dream_Stream.Services
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
-            ThreadPool.SetMaxThreads(10, 10);
             Console.WriteLine($"Handling message from: {context.Connection.RemoteIpAddress}");
+            var tasks = new Task[10];
+
             try
             {
-                WebSocketReceiveResult result;
-                do
+                for (var i = 0; i < tasks.Length; i++)
                 {
-                   ThreadPool.QueueUserWorkItem(async x =>
+                    tasks[i] = Task.Run(async () =>
                     {
-                        var buffer = new byte[1024 * 100];
-                        await ReadLock.WaitAsync();
-                        result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                        ReadLock.Release();
-                        var buf = buffer.Take(result.Count).ToArray();
-
-                        if (LZ4MessagePackSerializer.Deserialize<IMessage>(buf) is MessageContainer message)
+                        do
                         {
+                            var buffer = new byte[1024 * 100];
+                            
+                            await ReadLock.WaitAsync();
+                            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                            ReadLock.Release();
 
-                            await HandlePublishMessage(message.Header, buf, webSocket);
-                            MessageBatchesReceived.WithLabels(message.Header.Topic).Inc();
-                            MessagesReceived.Inc(message.Messages.Count);
-                        }
+                            var buf = buffer.Take(result.Count).ToArray();
+
+                            if (LZ4MessagePackSerializer.Deserialize<IMessage>(buf) is MessageContainer message)
+                            {
+
+                                await HandlePublishMessage(message.Header, buf, webSocket);
+                                MessageBatchesReceived.WithLabels(message.Header.Topic).Inc();
+                                MessagesReceived.Inc(message.Messages.Count);
+                            }
+                        } while (true);
                     });
-                } while (true);
+                }
+
+                await Task.WhenAll(tasks);
             }
             catch (Exception e)
             {

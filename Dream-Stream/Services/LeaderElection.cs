@@ -52,7 +52,7 @@ namespace Dream_Stream.Services
                 LeaderHandler();
                 while (_leader)
                 {
-                    await Task.Delay(500);
+                    Thread.Sleep(500);
                     _client.LeaseKeepAlive(new LeaseKeepAliveRequest { ID = lease.ID }, HandleLeaseKeepAliveRequest, CancellationToken.None);
                 }
             }
