@@ -242,6 +242,16 @@ namespace UnitTests
         }
 
         [Fact]
+        public void dummyTest()
+        {
+            var test = new byte[] {10, 20, 30};
+            var test2 = test;
+
+            test2[2] = 10;
+
+        }
+
+        [Fact]
         public void MessageSplit_EqualSizeAsRequested()
         {
             var message1 = new Message()

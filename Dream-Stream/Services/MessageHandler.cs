@@ -33,26 +33,30 @@ namespace Dream_Stream.Services
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
-            var buffer = new byte[1024 * 900];
+            ThreadPool.SetMaxThreads(10, 10);
             Console.WriteLine($"Handling message from: {context.Connection.RemoteIpAddress}");
             try
             {
                 WebSocketReceiveResult result;
                 do
                 {
-                    result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                    if (result.CloseStatus.HasValue) break;
-                    var buf = buffer.Take(result.Count).ToArray();
-                    if(LZ4MessagePackSerializer.Deserialize<IMessage>(buf) is MessageContainer message)
+                   ThreadPool.QueueUserWorkItem(async x =>
                     {
-                        ThreadPool.QueueUserWorkItem(async x =>
+                        var buffer = new byte[1024 * 900];
+                        await ReadLock.WaitAsync();
+                        result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        ReadLock.Release();
+                        var buf = buffer.Take(result.Count).ToArray();
+
+                        if (LZ4MessagePackSerializer.Deserialize<IMessage>(buf) is MessageContainer message)
                         {
+
                             await HandlePublishMessage(message.Header, buf, webSocket);
                             MessageBatchesReceived.WithLabels(message.Header.Topic).Inc();
                             MessagesReceived.Inc(message.Messages.Count);
-                        });
-                    }
-                } while (!result.CloseStatus.HasValue);
+                        }
+                    });
+                } while (true);
             }
             catch (Exception e)
             {
