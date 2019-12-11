@@ -42,7 +42,7 @@ namespace Dream_Stream.Services
                     var localResult = result;
                     if (localResult.CloseStatus.HasValue) break;
 
-                    ThreadPool.QueueUserWorkItem(async x =>
+                    await Task.Run(async () =>
                     {
                         var localBuffer = buffer.SubArray(0, localResult.Count);
                         try
@@ -68,8 +68,6 @@ namespace Dream_Stream.Services
                                 Console.WriteLine(e);
                         }
                     });
-
-
                 } while (!result.CloseStatus.HasValue);
             }
             catch (Exception e)
