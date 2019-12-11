@@ -27,11 +27,11 @@ namespace Dream_Stream.Services
         });
         private readonly StorageApiService _storage = new StorageApiService();
         private static readonly SemaphoreSlim Lock = new SemaphoreSlim(1, 1);
+        private static readonly SemaphoreSlim ReadLock = new SemaphoreSlim(1, 1);
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
             var buffer = new byte[1024 * 900];
-            WebSocketReceiveResult result = null;
             Console.WriteLine($"Handling message from: {context.Connection.RemoteIpAddress}");
             var tasks = new Task[10];
 
@@ -41,16 +41,15 @@ namespace Dream_Stream.Services
                 {
                     for (var i = 0; i < tasks.Length; i++)
                     {
-                        result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                        var localResult = result;
-                        if (localResult.CloseStatus.HasValue) break;
-
                         tasks[i] = Task.Run(async () =>
                         {
-                            var localBuffer = buffer.SubArray(0, localResult.Count);
+                            await ReadLock.WaitAsync();
+                            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                            ReadLock.Release();
+
+                            var localBuffer = buffer.SubArray(0, result.Count);
                             try
                             {
-
                                 var message = LZ4MessagePackSerializer.Deserialize<IMessage>(localBuffer);
 
                                 switch (message)
@@ -66,7 +65,7 @@ namespace Dream_Stream.Services
                             catch (Exception e)
                             {
                                 if (e.Message.Contains("corrupt"))
-                                    StorageApiService.CorruptedMessagesSizeInBytes.WithLabels("Unknown").Inc(localResult.Count);
+                                    StorageApiService.CorruptedMessagesSizeInBytes.WithLabels("Unknown").Inc(result.Count);
                                 else
                                     Console.WriteLine(e);
                             }
@@ -75,16 +74,12 @@ namespace Dream_Stream.Services
 
                     await Task.WhenAll(tasks);
 
-                } while (result?.CloseStatus == null);
+                } while (true);
             }
             catch (Exception e)
             {
                 Console.WriteLine(e);
                 Console.WriteLine("Connection closed");
-            }
-            finally
-            {
-                await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, result?.CloseStatusDescription ?? "Failed hard", CancellationToken.None);
             }
         }
 
