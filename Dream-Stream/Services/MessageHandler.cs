@@ -42,7 +42,7 @@ namespace Dream_Stream.Services
                 {
                    ThreadPool.QueueUserWorkItem(async x =>
                     {
-                        var buffer = new byte[1024 * 900];
+                        var buffer = new byte[1024 * 100];
                         await ReadLock.WaitAsync();
                         result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                         ReadLock.Release();
