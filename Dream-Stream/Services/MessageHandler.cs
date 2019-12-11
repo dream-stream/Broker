@@ -4,9 +4,11 @@ using Microsoft.AspNetCore.Http;
 using Prometheus;
 using System;
 using System.IO;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Dream_Stream.Models.Messages.ConsumerMessages;
 
 namespace Dream_Stream.Services
 {
@@ -31,50 +33,32 @@ namespace Dream_Stream.Services
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
-            var buffer = new byte[1024 * 900];
+            var buffer = new byte[1024 * 6];
             Console.WriteLine($"Handling message from: {context.Connection.RemoteIpAddress}");
-            var tasks = new Task[10];
 
             try
             {
+                WebSocketReceiveResult result;
                 do
                 {
-                    for (var i = 0; i < tasks.Length; i++)
+                    result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    if (result.CloseStatus.HasValue) break;
+
+                    var buf = buffer.Take(result.Count).ToArray();
+
+                    var message =
+                        LZ4MessagePackSerializer.Deserialize<IMessage>(buf);
+
+                    switch (message)
                     {
-                        tasks[i] = Task.Run(async () =>
-                        {
-                            await ReadLock.WaitAsync();
-                            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                            ReadLock.Release();
-
-                            var localBuffer = buffer.SubArray(0, result.Count);
-                            try
-                            {
-                                var message = LZ4MessagePackSerializer.Deserialize<IMessage>(localBuffer);
-
-                                switch (message)
-                                {
-                                    case MessageContainer msg:
-                                        await HandlePublishMessage(msg.Header, localBuffer, webSocket);
-                                        MessagesReceivedSizeInBytes.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(localBuffer.Length);
-                                        MessageBatchesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc();
-                                        MessagesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(msg.Messages.Count);
-                                        break;
-                                }
-                            }
-                            catch (Exception e)
-                            {
-                                if (e.Message.Contains("corrupt"))
-                                    StorageApiService.CorruptedMessagesSizeInBytes.WithLabels("Unknown").Inc(result.Count);
-                                else
-                                    Console.WriteLine(e);
-                            }
-                        });
+                        case MessageContainer msg:
+                            await HandlePublishMessage(msg.Header, buf, webSocket);
+                            MessageBatchesReceived.WithLabels(msg.Header.Topic).Inc();
+                            MessagesReceived.Inc(msg.Messages.Count);
+                            break;
                     }
 
-                    await Task.WhenAll(tasks);
-
-                } while (true);
+                } while (!result.CloseStatus.HasValue);
             }
             catch (Exception e)
             {
