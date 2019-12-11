@@ -33,42 +33,49 @@ namespace Dream_Stream.Services
             var buffer = new byte[1024 * 900];
             WebSocketReceiveResult result = null;
             Console.WriteLine($"Handling message from: {context.Connection.RemoteIpAddress}");
+            var tasks = new Task[10];
 
             try
             {
                 do
                 {
-                    result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                    var localResult = result;
-                    if (localResult.CloseStatus.HasValue) break;
-
-                    await Task.Run(async () =>
+                    for (var i = 0; i < tasks.Length; i++)
                     {
-                        var localBuffer = buffer.SubArray(0, localResult.Count);
-                        try
+                        result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        var localResult = result;
+                        if (localResult.CloseStatus.HasValue) break;
+
+                        tasks[i] = Task.Run(async () =>
                         {
-
-                            var message = LZ4MessagePackSerializer.Deserialize<IMessage>(localBuffer);
-
-                            switch (message)
+                            var localBuffer = buffer.SubArray(0, localResult.Count);
+                            try
                             {
-                                case MessageContainer msg:
-                                    await HandlePublishMessage(msg.Header, localBuffer, webSocket);
-                                    MessagesReceivedSizeInBytes.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(localBuffer.Length);
-                                    MessageBatchesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc();
-                                    MessagesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(msg.Messages.Count);
-                                    break;
+
+                                var message = LZ4MessagePackSerializer.Deserialize<IMessage>(localBuffer);
+
+                                switch (message)
+                                {
+                                    case MessageContainer msg:
+                                        await HandlePublishMessage(msg.Header, localBuffer, webSocket);
+                                        MessagesReceivedSizeInBytes.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(localBuffer.Length);
+                                        MessageBatchesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc();
+                                        MessagesReceived.WithLabels($"{msg.Header.Topic}_{msg.Header.Partition}").Inc(msg.Messages.Count);
+                                        break;
+                                }
                             }
-                        }
-                        catch (Exception e)
-                        {
-                            if (e.Message.Contains("corrupt"))
-                                StorageApiService.CorruptedMessagesSizeInBytes.WithLabels("Unknown").Inc(localResult.Count);
-                            else
-                                Console.WriteLine(e);
-                        }
-                    });
-                } while (!result.CloseStatus.HasValue);
+                            catch (Exception e)
+                            {
+                                if (e.Message.Contains("corrupt"))
+                                    StorageApiService.CorruptedMessagesSizeInBytes.WithLabels("Unknown").Inc(localResult.Count);
+                                else
+                                    Console.WriteLine(e);
+                            }
+                        });
+                    }
+
+                    await Task.WhenAll(tasks);
+
+                } while (result?.CloseStatus == null);
             }
             catch (Exception e)
             {
