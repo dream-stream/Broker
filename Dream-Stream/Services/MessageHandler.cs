@@ -45,12 +45,21 @@ namespace Dream_Stream.Services
                         do
                         {
                             var buffer = new byte[1024 * 100];
-                            var token = new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token;
+                            var token = new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token;
                             token.ThrowIfCancellationRequested();
                             
                             await ReadLock.WaitAsync(token);
-                            var result = await webSocket?.ReceiveAsync(new ArraySegment<byte>(buffer), token);
-                            ReadLock.Release();
+                            WebSocketReceiveResult result;
+                            try
+                            {
+                                result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
+                                ReadLock.Release();
+                            }
+                            catch (Exception)
+                            {
+                                ReadLock.Release();
+                                continue;
+                            }
 
                             var buf = buffer.Take(result.Count).ToArray();
 
@@ -64,12 +73,11 @@ namespace Dream_Stream.Services
                     });
                 }
 
-                await Task.WhenAll(tasks);
+                await Task.WhenAny(tasks);
                 webSocket?.Dispose();
             }
             catch (Exception e)
             {
-                ReadLock.Release();
                 Console.WriteLine(e);
                 Console.WriteLine("Connection closed");
             }
