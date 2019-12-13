@@ -45,7 +45,7 @@ namespace Dream_Stream.Services
                         do
                         {
                             var buffer = new byte[1024 * 100];
-                            var token = new CancellationTokenSource(TimeSpan.FromSeconds(3)).Token;
+                            var token = new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token;
                             token.ThrowIfCancellationRequested();
                             
                             await ReadLock.WaitAsync(token);
