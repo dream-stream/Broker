@@ -8,7 +8,6 @@ using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Dream_Stream.Models.Messages.ConsumerMessages;
 
 namespace Dream_Stream.Services
 {
@@ -30,6 +29,8 @@ namespace Dream_Stream.Services
         private readonly StorageApiService _storage = new StorageApiService();
         private static readonly SemaphoreSlim Lock = new SemaphoreSlim(1, 1);
         private static readonly SemaphoreSlim ReadLock = new SemaphoreSlim(1, 1);
+        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromMilliseconds(2000));
+
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
@@ -47,14 +48,13 @@ namespace Dream_Stream.Services
                             var buffer = new byte[1024 * 100];
                             
                             await ReadLock.WaitAsync();
-                            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cancellationTokenSource.Token);
                             ReadLock.Release();
 
                             var buf = buffer.Take(result.Count).ToArray();
 
                             if (LZ4MessagePackSerializer.Deserialize<IMessage>(buf) is MessageContainer message)
                             {
-
                                 await HandlePublishMessage(message.Header, buf, webSocket);
                                 MessageBatchesReceived.WithLabels(message.Header.Topic).Inc();
                                 MessagesReceived.Inc(message.Messages.Count);
