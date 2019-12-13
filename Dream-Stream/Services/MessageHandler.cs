@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Dream_Stream.Services
 {
@@ -29,8 +30,6 @@ namespace Dream_Stream.Services
         private readonly StorageApiService _storage = new StorageApiService();
         private static readonly SemaphoreSlim Lock = new SemaphoreSlim(1, 1);
         private static readonly SemaphoreSlim ReadLock = new SemaphoreSlim(1, 1);
-        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromMilliseconds(2000));
-
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {
@@ -46,9 +45,11 @@ namespace Dream_Stream.Services
                         do
                         {
                             var buffer = new byte[1024 * 100];
+                            var token = new CancellationTokenSource(TimeSpan.FromSeconds(3)).Token;
+                            token.ThrowIfCancellationRequested();
                             
-                            await ReadLock.WaitAsync();
-                            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cancellationTokenSource.Token);
+                            await ReadLock.WaitAsync(token);
+                            var result = await webSocket?.ReceiveAsync(new ArraySegment<byte>(buffer), token);
                             ReadLock.Release();
 
                             var buf = buffer.Take(result.Count).ToArray();
@@ -59,14 +60,16 @@ namespace Dream_Stream.Services
                                 MessageBatchesReceived.WithLabels(message.Header.Topic).Inc();
                                 MessagesReceived.Inc(message.Messages.Count);
                             }
-                        } while (true);
+                        } while (webSocket != null && webSocket.State == WebSocketState.Open);
                     });
                 }
 
                 await Task.WhenAll(tasks);
+                webSocket?.Dispose();
             }
             catch (Exception e)
             {
+                ReadLock.Release();
                 Console.WriteLine(e);
                 Console.WriteLine("Connection closed");
             }
