@@ -25,7 +25,7 @@ namespace Dream_Stream
             
             if (env.IsDevelopment()) app.UseDeveloperExceptionPage();
 
-            
+            var useLocalStorage = Environment.GetEnvironmentVariable("LOCAL_API") == "TRUE";
 
             app.UseMetricServer();
 
@@ -53,7 +53,7 @@ namespace Dream_Stream
                         try
                         {
                             var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-                            await new MessageHandler().Handle(context, webSocket);
+                            await new MessageHandler(useLocalStorage).Handle(context, webSocket);
                         }
                         catch (Exception e)
                         {

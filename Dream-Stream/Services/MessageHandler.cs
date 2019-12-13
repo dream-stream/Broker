@@ -8,7 +8,6 @@ using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Dream_Stream.Services
 {
@@ -27,9 +26,17 @@ namespace Dream_Stream.Services
         {
             LabelNames = new[] { "TopicPartition" }
         });
-        private readonly StorageApiService _storage = new StorageApiService();
+        private readonly IStorage _storage;
         private static readonly SemaphoreSlim Lock = new SemaphoreSlim(1, 1);
         private static readonly SemaphoreSlim ReadLock = new SemaphoreSlim(1, 1);
+
+        public MessageHandler(bool localStorage)
+        {
+            if(localStorage)
+                _storage = new StorageService();
+            else
+                _storage = new StorageApiService();
+        }
 
         public async Task Handle(HttpContext context, WebSocket webSocket)
         {

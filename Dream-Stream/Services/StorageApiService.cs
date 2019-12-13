@@ -11,18 +11,12 @@ using Dream_Stream.Models.Messages;
 using Dream_Stream.Models.Messages.ConsumerMessages;
 using MessagePack;
 using Microsoft.Extensions.Caching.Memory;
-using Prometheus;
 
 namespace Dream_Stream.Services
 {
-    public class StorageApiService// : IStorage
+    public class StorageApiService : IStorage
     {
         private static readonly ConcurrentDictionary<string, long> Offsets = new ConcurrentDictionary<string, long>();
-
-        public static readonly Counter CorruptedMessagesSizeInBytes = Metrics.CreateCounter("corrupted_messages_size_in_bytes", "", new CounterConfiguration
-        {
-            LabelNames = new[] { "TopicPartition" }
-        });
 
         //private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
         private readonly Uri _storageApiAddress = new Uri("http://storage-api");
@@ -103,17 +97,6 @@ namespace Dream_Stream.Services
                 var (messages, length) = SplitByteRead(buffer);
 
                 if (length == 0) return (header, null, 0);
-
-                foreach (var message in messages)
-                {
-                    if (message[^1] != 67 && message[0] != 0)
-                    {
-                        CorruptedMessagesSizeInBytes.WithLabels($"{topic}/{partition}").Inc(buffer.Length);
-                        Console.WriteLine($"Corrupted data - Topic {topic} - Partition {partition}");
-                        File.WriteAllText($"/mnt/data/corrupt.txt", string.Join(",", buffer));
-                        return (header, null, 0);
-                    }
-                }
 
                 return (header, messages, length);
             }
