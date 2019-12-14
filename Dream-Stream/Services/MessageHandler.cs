@@ -52,7 +52,7 @@ namespace Dream_Stream.Services
                         do
                         {
                             var buffer = new byte[1024 * 100];
-                            var token = new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token;
+                            var token = new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token;
                             token.ThrowIfCancellationRequested();
                             
                             await ReadLock.WaitAsync(token);
@@ -62,8 +62,9 @@ namespace Dream_Stream.Services
                                 result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
                                 ReadLock.Release();
                             }
-                            catch (Exception)
+                            catch (Exception e)
                             {
+                                Console.WriteLine(e);
                                 ReadLock.Release();
                                 continue;
                             }
