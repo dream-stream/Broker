@@ -114,7 +114,16 @@ namespace Dream_Stream.Services
                 var buffer = reader.ReadBytes(size);
 
                 var (messages, length) = SplitByteRead(buffer);
-                if (length == 0) return (header, null, 0);
+                if (length == 0)
+                {
+                    Offsets.AddOrUpdate($"{topic}/{partition}", offset - 1, (key, currentValue) =>
+                    {
+                        if (currentValue < offset)
+                            return offset - 1;
+                        return currentValue;
+                    });
+                    return (header, null, 0);
+                }
 
                 MessagesReadSizeInBytes.WithLabels($"{topic}/{partition}").Inc(size);
                 return (header, messages, length);
