@@ -28,7 +28,7 @@ spec:
         - name: ASPNETCORE_URLS
           value: "http://*:80"
         - name: LOCAL_STORAGE
-          value: "FALSE"
+          value: "TRUE"
         resources:
           requests:
             memory: "1000Mi"
@@ -36,3 +36,22 @@ spec:
           limits:
             memory: "1000Mi"
             cpu: "500m"
+        volumeMounts:
+          - name: file-storage
+            mountPath: /ssd/local
+      volumes:
+        - name: file-storage
+          persistentVolumeClaim:
+            claimName: storage-local-claim
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: storage-local-claim
+spec:
+  storageClassName: csi-cephfs
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 9Gi
