@@ -31,6 +31,11 @@ namespace Dream_Stream.Controllers
             LabelNames = new[] { "TopicPartition" }
         });
 
+        private static readonly Counter MessagesSent = Metrics.CreateCounter("broker_messages_sent", "Total number of messages received.", new CounterConfiguration
+        {
+            LabelNames = new[] { "TopicPartition" }
+        });
+
         private static readonly Counter MessagesSentSizeInBytes = Metrics.CreateCounter("messages_sent_size_in_bytes", "", new CounterConfiguration
         {
             LabelNames = new[] { "TopicPartition" }
@@ -79,6 +84,7 @@ namespace Dream_Stream.Controllers
                 Response.Headers.Add("Content-Length", responseData.Length.ToString());
                 Response.StatusCode = 200;
                 await Response.Body.WriteAsync(responseData, 0, responseData.Length);
+                MessagesSent.WithLabels($"{topic}/{partition}").Inc();
             }
             catch (Exception e)
             {

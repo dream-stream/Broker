@@ -28,7 +28,7 @@ spec:
         - name: ASPNETCORE_URLS
           value: "http://*:80"
         - name: LOCAL_STORAGE
-          value: "false"
+          value: "FALSE"
         resources:
           requests:
             memory: "1000Mi"

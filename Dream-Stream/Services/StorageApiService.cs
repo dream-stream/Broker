@@ -71,9 +71,8 @@ namespace Dream_Stream.Services
 
         public async Task<(MessageHeader header, List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)
         {
-            if (Offsets.TryGetValue($"{topic}/{partition}", out var latestOffset) && latestOffset < offset) 
+            if (Offsets.TryGetValue($"{topic}/{partition}", out var latestOffset) && latestOffset < offset)
                 return (new MessageHeader {Topic = topic, Partition = partition}, null, 0);
-            
 
             //Check if the requested data is in cache.
             var cacheRead = ReadFromCache($"{topic}/{partition}", offset, amount);
@@ -96,7 +95,16 @@ namespace Dream_Stream.Services
 
                 var (messages, length) = SplitByteRead(buffer);
 
-                if (length == 0) return (header, null, 0);
+                if (length == 0)
+                {
+                    Offsets.AddOrUpdate($"{topic}/{partition}", offset - 1, (key, currentValue) =>
+                    {
+                        if(currentValue < offset)
+                            return offset - 1;
+                        return currentValue;
+                    });
+                    return (header, null, 0);
+                }
 
                 return (header, messages, length);
             }
