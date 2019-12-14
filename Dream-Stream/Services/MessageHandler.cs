@@ -30,12 +30,9 @@ namespace Dream_Stream.Services
         private static readonly SemaphoreSlim Lock = new SemaphoreSlim(1, 1);
         private static readonly SemaphoreSlim ReadLock = new SemaphoreSlim(1, 1);
 
-        public MessageHandler(bool localStorage)
+        public MessageHandler(IStorage storage)
         {
-            if(localStorage)
-                _storage = new StorageService();
-            else
-                _storage = new StorageApiService();
+            _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         }
 
         public async Task Handle(HttpContext context, WebSocket webSocket)

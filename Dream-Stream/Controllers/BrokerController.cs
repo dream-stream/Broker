@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Dream_Stream.Models.Messages;
@@ -15,7 +14,7 @@ namespace Dream_Stream.Controllers
     [ApiController]
     public class BrokerController : ControllerBase
     {
-        private readonly StorageApiService _storage = new StorageApiService();
+        private readonly IStorage _storage;
 
         private static readonly Counter MessageBatchesReceived = Metrics.CreateCounter("message_batches_received", "", new CounterConfiguration
         {
@@ -40,6 +39,11 @@ namespace Dream_Stream.Controllers
         {
             LabelNames = new[] { "TopicPartition" }
         });
+
+        public BrokerController(IStorage storage)
+        {
+            _storage = storage ?? throw new ArgumentNullException(nameof(storage));
+        }
 
         [HttpPost]
         [DisableRequestSizeLimit]

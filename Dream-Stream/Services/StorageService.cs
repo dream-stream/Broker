@@ -28,7 +28,7 @@ namespace Dream_Stream.Services
             LabelNames = new[] { "TopicPartition" }
         });
 
-        private readonly MemoryCache _cache = new MemoryCache(new MemoryCacheOptions
+        private static readonly MemoryCache _cache = new MemoryCache(new MemoryCacheOptions
         {
             SizeLimit = 350000000 //350MB
         });

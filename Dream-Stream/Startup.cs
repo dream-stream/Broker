@@ -17,15 +17,18 @@ namespace Dream_Stream
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+
+            if(Environment.GetEnvironmentVariable("LOCAL_STORAGE") == "TRUE")
+                services.AddSingleton<IStorage, StorageService>();
+            else
+                services.AddSingleton<IStorage, StorageApiService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public async void Configure(IApplicationBuilder app, IWebHostEnvironment env, IHostApplicationLifetime appLifeTime)
+        public async void Configure(IApplicationBuilder app, IWebHostEnvironment env, IHostApplicationLifetime appLifeTime, IStorage storageService)
         {
             
             if (env.IsDevelopment()) app.UseDeveloperExceptionPage();
-
-            var useLocalStorage = Environment.GetEnvironmentVariable("LOCAL_STORAGE") == "TRUE";
 
             app.UseMetricServer();
 
@@ -53,7 +56,7 @@ namespace Dream_Stream
                         try
                         {
                             var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-                            await new MessageHandler(useLocalStorage).Handle(context, webSocket);
+                            await new MessageHandler(storageService).Handle(context, webSocket);
                         }
                         catch (Exception e)
                         {
