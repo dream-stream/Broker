@@ -49,8 +49,8 @@ namespace Dream_Stream.Services
             await _lock.WaitAsync();
             try
             {
-                stream.Seek(0, SeekOrigin.End);
-                offset = stream.Position;
+                fileStream.Seek(0, SeekOrigin.End);
+                offset = fileStream.Position;
 
                 await fileStream.WriteAsync(lengthInBytes);
                 await stream.CopyToAsync(fileStream);

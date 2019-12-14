@@ -25,7 +25,7 @@ namespace Dream_Stream
             
             if (env.IsDevelopment()) app.UseDeveloperExceptionPage();
 
-            var useLocalStorage = Environment.GetEnvironmentVariable("LOCAL_API") == "TRUE";
+            var useLocalStorage = true;//Environment.GetEnvironmentVariable("LOCAL_STORAGE") == "TRUE";
 
             app.UseMetricServer();
 
