@@ -30,8 +30,8 @@ namespace Dream_Stream.Services
 
         private static readonly ConcurrentDictionary<string, long> Offsets = new ConcurrentDictionary<string, long>();
 
-        //private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
-        private readonly Uri _storageApiAddress = new Uri("http://storage-api");
+        private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
+        //private readonly Uri _storageApiAddress = new Uri("http://storage-api");
         //private readonly Uri _storageApiAddress = new Uri("http://worker2:30050");
 
         private readonly HttpClient _storageClient;
@@ -179,7 +179,7 @@ namespace Dream_Stream.Services
 
         public static (List<byte[]> messages, int length) SplitByteRead(byte[] read)
         {
-            if (read.Length < 10 || read[0] == 0) return (null, 0);
+            if (read.Length < 10) return (null, 0);
             
             var list = new List<byte[]>();
             const int messageHeaderSize = 10;
