@@ -11,11 +11,23 @@ using Dream_Stream.Models.Messages;
 using Dream_Stream.Models.Messages.ConsumerMessages;
 using MessagePack;
 using Microsoft.Extensions.Caching.Memory;
+using Prometheus;
 
 namespace Dream_Stream.Services
 {
     public class StorageApiService : IStorage
     {
+        private static readonly Gauge OffsetUpdated = Metrics.CreateGauge("offset_updated", "Last Offset Updated.", new GaugeConfiguration
+        {
+            LabelNames = new[] { "TopicPartition" }
+        });
+        private static readonly Gauge OffsetRead = Metrics.CreateGauge("offset_read", "Last Offset Received From Consumer.", new GaugeConfiguration
+        {
+            LabelNames = new[] { "ConsumerGroupTopicPartition" }
+        });
+
+
+
         private static readonly ConcurrentDictionary<string, long> Offsets = new ConcurrentDictionary<string, long>();
 
         //private readonly Uri _storageApiAddress = new Uri("http://localhost:5040");
@@ -65,12 +77,14 @@ namespace Dream_Stream.Services
             ms.Seek(0, SeekOrigin.Begin);
             Cache.Set($"{topic}/{partition}/{offset}", ms.ToArray(), options);
             Offsets.AddOrUpdate($"{topic}/{partition}", x => offset, (x, y) => offset);
+            OffsetUpdated.WithLabels($"{topic}/{partition}").Set(offset);
 
             return offset;
         }
 
         public async Task<(MessageHeader header, List<byte[]> messages, int length)> Read(string consumerGroup, string topic, int partition, long offset, int amount)
         {
+            OffsetRead.WithLabels($"{consumerGroup}/{topic}/{partition}").Set(offset);
             if (Offsets.TryGetValue($"{topic}/{partition}", out var latestOffset) && latestOffset < offset)
                 return (new MessageHeader {Topic = topic, Partition = partition}, null, 0);
 
@@ -97,12 +111,12 @@ namespace Dream_Stream.Services
 
                 if (length == 0)
                 {
-                    Offsets.AddOrUpdate($"{topic}/{partition}", offset - 1, (key, currentValue) =>
-                    {
-                        if(currentValue < offset)
-                            return offset - 1;
-                        return currentValue;
-                    });
+                    //Offsets.AddOrUpdate($"{topic}/{partition}", offset - 1, (key, currentValue) =>
+                    //{
+                    //    if(currentValue < offset)
+                    //        return offset - 1;
+                    //    return currentValue;
+                    //});
                     return (header, null, 0);
                 }
 
