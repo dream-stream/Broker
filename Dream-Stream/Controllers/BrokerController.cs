@@ -65,8 +65,12 @@ namespace Dream_Stream.Controllers
         {
             try
             {
+                bool offsetReadFromFile = false;
                 if (offset == -1)
+                {
+                    offsetReadFromFile = true;
                     offset = (await _storage.ReadOffset(consumerGroup, topic, partition)).Offset;
+                }
 
                 var (header, messages, length) = await _storage.Read(consumerGroup, topic, partition, offset, amount);
 
@@ -83,7 +87,7 @@ namespace Dream_Stream.Controllers
                     var responseData2 = LZ4MessagePackSerializer.Serialize<IMessage>(new MessageRequestResponse
                     {
                         Header = header,
-                        Offset = length
+                        Offset = offsetReadFromFile ? (int)(offset + length) : length
                     });
                     Response.Headers.Add("Content-Length", responseData2.Length.ToString());
                     await Response.Body.WriteAsync(responseData2, 0, responseData2.Length);
