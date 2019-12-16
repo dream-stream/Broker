@@ -13,6 +13,8 @@ namespace Dream_Stream
 {
     public class Startup
     {
+        public static bool ShuttingDown { get; set; }
+
         // This method gets called by the runtime. Use this method to add services to the container.
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
@@ -87,9 +89,14 @@ namespace Dream_Stream
 
             appLifeTime.ApplicationStopping.Register(() =>
             {
+                Console.WriteLine("Started shutting down...");
+                ShuttingDown = true;
                 brokerTable.Shutdown();
                 topicList.Shutdown();
                 Thread.Sleep(5000);
+                Console.WriteLine("5 sec after starting shutdown...");
+                Thread.Sleep(5000);
+                Console.WriteLine("Shutdown...");
             });
         }
     }

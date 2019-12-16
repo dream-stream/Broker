@@ -35,6 +35,12 @@ namespace Dream_Stream.Services
 
         public async Task<long> Store(string topic, int partition, int length, Stream stream)
         {
+            if (Startup.ShuttingDown)
+            {
+                Console.WriteLine("Shutting down - did not write to file.");
+                return -1;
+            }
+
             var filePath = $"{BasePath}/{topic}/{partition}.txt";
             var streamKey = $"{topic}/{partition}";
 
@@ -130,7 +136,7 @@ namespace Dream_Stream.Services
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Topic: {topic}, Partition: {partition}, Error: {e.Message}");
+                Console.WriteLine($"ConsumerGroup: {consumerGroup}, Topic: {topic}, Partition: {partition}, offset: {offset} Error: {e.Message}");
                 Console.WriteLine(e);
                 return (header, null, 0);
             }
