@@ -21,7 +21,7 @@ namespace Dream_Stream
         {
             services.AddControllers();
 
-            if(false)//Environment.GetEnvironmentVariable("LOCAL_STORAGE") == "TRUE")
+            if(Environment.GetEnvironmentVariable("LOCAL_STORAGE") == "TRUE")
                 services.AddSingleton<IStorage, StorageService>();
             else
                 services.AddSingleton<IStorage, StorageApiService>();
