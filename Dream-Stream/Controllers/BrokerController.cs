@@ -102,7 +102,7 @@ namespace Dream_Stream.Controllers
                 {
                     Header = header,
                     Messages = messages,
-                    Offset = length
+                    Offset = offsetReadFromFile ? (int)(offset + length) : length
                 });
 
                 Response.Headers.Add("Content-Length", responseData.Length.ToString());

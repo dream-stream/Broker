@@ -191,15 +191,19 @@ namespace UnitTests
             var messagesPerPartition = new int[partitionCount];
             var lengthPerPartition = new int[partitionCount];
             var totalMessage = 0;
-            var api = new StorageService();
+            var api = new StorageApiService();
 
-            var tasks = Enumerable.Range(2, 1).Select(async i =>
+            var tasks = Enumerable.Range(0, partitionCount).Select(async i =>
             {
                 var length = 0;
                 var messagesRead = 0;
 
                 while (true)
                 {
+                    if (messagesRead >= 80)
+                    {
+                        var test = 0;
+                    }
                     var (header, messages, length1) = await api.Read(consumerGroup, topic, i, length, 1024 * 900);
                     length += length1;
                     lengthPerPartition[i] += length1;
