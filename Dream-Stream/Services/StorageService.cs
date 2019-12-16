@@ -60,12 +60,12 @@ namespace Dream_Stream.Services
 
                 await fileStream.WriteAsync(lengthInBytes);
                 await stream.CopyToAsync(fileStream);
-                await fileStream.FlushAsync();
                 if (fileStream.Position - offset != length + 10)
                 {
                     Console.WriteLine("Stuff got fucked up and we reset!!!");
                     fileStream.SetLength(offset);
                 }
+                await fileStream.FlushAsync();
                 _lock.Release();
             }
             catch (Exception e)
