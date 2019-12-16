@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using dotnet_etcd;
 using Dream_Stream.Services;
@@ -88,6 +89,7 @@ namespace Dream_Stream
             {
                 brokerTable.Shutdown();
                 topicList.Shutdown();
+                Thread.Sleep(5000);
             });
         }
     }

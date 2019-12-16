@@ -156,10 +156,10 @@ namespace UnitTests
             const string consumerGroup = "Anders-Is-A-Noob";
             const string topic = "Topic3";
             var list = new List<MessageContainer>();
-            var api = new StorageApiService();
+            var api = new StorageService();
 
 
-            for (var i = 0; i < 12; i++)
+            for (var i = 2; i < 3; i++)
             {
                 var length = 0;
                 var messagesRead = 0;
@@ -191,9 +191,9 @@ namespace UnitTests
             var messagesPerPartition = new int[partitionCount];
             var lengthPerPartition = new int[partitionCount];
             var totalMessage = 0;
-            var api = new StorageApiService();
+            var api = new StorageService();
 
-            var tasks = Enumerable.Range(0, partitionCount).Select(async i =>
+            var tasks = Enumerable.Range(2, 1).Select(async i =>
             {
                 var length = 0;
                 var messagesRead = 0;
@@ -330,8 +330,13 @@ namespace UnitTests
 
             var dataConcat = length1.Concat(data1).Concat(length2).Concat(data2.Take(data2.Length - 5)).ToArray(); //Message is 5 bytes to big to fit for requested amount
 
-            var (messages, length) = StorageApiService.SplitByteRead(dataConcat);
+            var (_, length) = StorageApiService.SplitByteRead(dataConcat);
             Assert.Equal(length1.Length + data1.Length, length);
+
+            dataConcat = length1.Concat(data1).Concat(length2).Concat(data2).Concat(length1).Concat(data1).ToArray();
+
+            (_, length) = StorageApiService.SplitByteRead(dataConcat);
+            Assert.Equal(length1.Length + data1.Length + length2.Length + data2.Length + length1.Length + data1.Length, length);
         }
 
         [Fact]
@@ -352,6 +357,13 @@ namespace UnitTests
 
             var (messages, length) = StorageApiService.SplitByteRead(dataConcat);
             Assert.Equal(length1.Length + data1.Length, length);
+        }
+
+        [Fact]
+        public void MessageSplit_NoMessages()
+        {
+           var (messages, length) = StorageApiService.SplitByteRead(new byte[0]);
+            Assert.Equal(0, length);
         }
 
 

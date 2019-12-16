@@ -28,7 +28,7 @@ namespace Dream_Stream.Services
             LabelNames = new[] { "TopicPartition" }
         });
 
-        private static readonly MemoryCache _cache = new MemoryCache(new MemoryCacheOptions
+        public static readonly MemoryCache _cache = new MemoryCache(new MemoryCacheOptions
         {
             SizeLimit = 350000000 //350MB
         });
@@ -89,7 +89,7 @@ namespace Dream_Stream.Services
             var filePath = $"{BasePath}/{topic}/{partition}.txt";
             var streamKey = $"{consumerGroup}/{topic}/{partition}";
             
-            var cacheItems = ReadFromCache(filePath, offset, amount);
+            var cacheItems = ReadFromCache($"{topic}/{partition}", offset, amount);
             if (cacheItems.length != 0)
                 return cacheItems;
 
@@ -125,7 +125,7 @@ namespace Dream_Stream.Services
                     return (header, null, 0);
                 }
 
-                MessagesReadSizeInBytes.WithLabels($"{topic}/{partition}").Inc(size);
+                MessagesReadSizeInBytes.WithLabels($"{topic}/{partition}").Inc(length);
                 return (header, messages, length);
             }
             catch (Exception e)
@@ -192,7 +192,6 @@ namespace Dream_Stream.Services
         {
             (MessageHeader header, List<byte[]> messages, int length) response = (new MessageHeader(), new List<byte[]>(), 0);
             var getHeader = true;
-
 
             while (true)
             {
