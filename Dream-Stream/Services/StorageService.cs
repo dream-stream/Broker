@@ -61,6 +61,11 @@ namespace Dream_Stream.Services
                 await fileStream.WriteAsync(lengthInBytes);
                 await stream.CopyToAsync(fileStream);
                 await fileStream.FlushAsync();
+                if (fileStream.Position - offset != length + 10)
+                {
+                    Console.WriteLine("Stuff got fucked up and we reset!!!");
+                    fileStream.SetLength(offset);
+                }
                 _lock.Release();
             }
             catch (Exception e)
@@ -138,7 +143,9 @@ namespace Dream_Stream.Services
             {
                 Console.WriteLine($"ConsumerGroup: {consumerGroup}, Topic: {topic}, Partition: {partition}, offset: {offset} Error: {e.Message}");
                 Console.WriteLine(e);
-                return (header, null, 0);
+                if (latestOffset == offset - 1)
+                    return (header, null, 0);
+                return (header, null, (int)(latestOffset - offset));
             }
         }
 

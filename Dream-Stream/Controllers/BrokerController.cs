@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using Dream_Stream.Models.Messages;
 using Dream_Stream.Models.Messages.ConsumerMessages;
@@ -72,6 +73,21 @@ namespace Dream_Stream.Controllers
                 if (length == 0)
                 {
                     Response.StatusCode = 204;
+                    return;
+                }
+
+                if (messages == null)
+                {
+                    Response.StatusCode = (int)HttpStatusCode.PartialContent;
+
+                    var responseData2 = LZ4MessagePackSerializer.Serialize<IMessage>(new MessageRequestResponse
+                    {
+                        Header = header,
+                        Offset = length
+                    });
+                    Response.Headers.Add("Content-Length", responseData2.Length.ToString());
+                    await Response.Body.WriteAsync(responseData2, 0, responseData2.Length);
+
                     return;
                 }
 

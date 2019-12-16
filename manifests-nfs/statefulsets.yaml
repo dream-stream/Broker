@@ -10,7 +10,7 @@ spec:
     matchLabels:
       app: broker
   serviceName: "broker"
-  replicas: 3
+  replicas: 1
   template:
     metadata:
       labels:
