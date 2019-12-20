@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Dream_Stream.Controllers;
 using Dream_Stream.Models.Messages;
 using Dream_Stream.Services;
 using MessagePack;
@@ -193,7 +194,7 @@ namespace UnitTests
             var totalMessage = 0;
             var api = new StorageApiService();
 
-            var tasks = Enumerable.Range(0, partitionCount).Select(async i =>
+            var tasks = Enumerable.Range(7, 1).Select(async i =>
             {
                 var length = 0;
                 var messagesRead = 0;
@@ -234,6 +235,23 @@ namespace UnitTests
                 _testOutputHelper.WriteLine($"{lengthPerPartition[i]} length of partition {i}");
             }
             _testOutputHelper.WriteLine($"{totalMessage} messages read");
+        }
+
+        [Fact]
+        public async Task ConsumePartitionFromOffsetAsync()
+        {
+            const string consumerGroup = "Anders-Is-A-Noob";
+            const string topic = "Topic3";
+            var list = new List<MessageContainer>();
+            const int partitionCount = 7;
+            var api = new StorageApiService();
+
+            var(header, messages, length) = await api.Read(consumerGroup, topic, partitionCount, 22359630, 1024 * 900);
+            foreach (var message in messages)
+            {
+                var deserialized = LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer;
+                list.Add(deserialized);
+            }
         }
 
         [Fact]
