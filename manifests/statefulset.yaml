@@ -10,7 +10,7 @@ spec:
     matchLabels:
       app: broker
   serviceName: "broker"
-  replicas: 3
+  replicas: 1
   template:
     metadata:
       labels:
@@ -20,7 +20,7 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: broker
-        image: dreamstream/broker:281
+        image: dreamstream/broker:292
         ports:
         - containerPort: 80
           name: broker
