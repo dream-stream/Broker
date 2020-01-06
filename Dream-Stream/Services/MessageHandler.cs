@@ -17,10 +17,6 @@ namespace Dream_Stream.Services
         {
             LabelNames = new[] { "TopicPartition" }
         });
-        private static readonly Counter MessagesReceivedSizeInBytes = Metrics.CreateCounter("messages_received_size_in_bytes", "", new CounterConfiguration
-        {
-            LabelNames = new[] { "TopicPartition" }
-        });
 
         private static readonly Counter MessagesReceived = Metrics.CreateCounter("messages_received", "Total number of messages received.", new CounterConfiguration
         {
@@ -71,8 +67,8 @@ namespace Dream_Stream.Services
                             if (LZ4MessagePackSerializer.Deserialize<IMessage>(buf) is MessageContainer message)
                             {
                                 await HandlePublishMessage(message.Header, buf, webSocket);
-                                MessageBatchesReceived.WithLabels(message.Header.Topic).Inc();
-                                MessagesReceived.Inc(message.Messages.Count);
+                                MessageBatchesReceived.WithLabels($"{message.Header.Topic}/{message.Header.Partition}").Inc();
+                                MessagesReceived.WithLabels($"{message.Header.Topic}/{message.Header.Partition}").Inc(message.Messages.Count);
                             }
                         } while (webSocket != null && webSocket.State == WebSocketState.Open);
                     });
