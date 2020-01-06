@@ -59,7 +59,7 @@ namespace Dream_Stream
                         try
                         {
                             var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-                            await Task.Delay(3000);
+                            await Task.Delay(10000);
                             await new MessageHandler(storageService).Handle(context, webSocket);
                         }
                         catch (Exception e)
@@ -94,9 +94,6 @@ namespace Dream_Stream
                 ShuttingDown = true;
                 brokerTable.Shutdown();
                 topicList.Shutdown();
-                Thread.Sleep(5000);
-                Console.WriteLine("5 sec after starting shutdown...");
-                Thread.Sleep(5000);
                 Console.WriteLine("Shutdown...");
             });
         }

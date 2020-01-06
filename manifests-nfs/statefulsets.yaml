@@ -20,7 +20,7 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: broker
-        image: dreamstream/broker:281
+        image: dreamstream/broker:296
         ports:
         - containerPort: 80
           name: broker
@@ -54,4 +54,4 @@ spec:
     - ReadWriteMany
   resources:
     requests:
-      storage: 3Gi
+      storage: 9Gi
