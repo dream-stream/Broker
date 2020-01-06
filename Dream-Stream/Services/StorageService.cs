@@ -16,7 +16,7 @@ namespace Dream_Stream.Services
     public class StorageService : IStorage
     {
         private static readonly ConcurrentDictionary<string, long> Offsets = new ConcurrentDictionary<string, long>();
-        private const string BasePath = "D:/ssd/local";
+        private const string BasePath = "/ssd/local";
         private static readonly SemaphoreSlim OffsetLock = new SemaphoreSlim(1, 1);
         private static readonly Counter MessagesWrittenSizeInBytes = Metrics.CreateCounter("messages_written_size_in_bytes", "", new CounterConfiguration
         {

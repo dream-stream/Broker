@@ -399,11 +399,18 @@ namespace UnitTests
         public async Task FileStream()
         {
             var path = "C:/ssd/test.txt";
-            var stream = new FileStream(path, FileMode.OpenOrCreate);
-            await stream.WriteAsync(Encoding.ASCII.GetBytes("ABC"));
+            var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+            var stream2 = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+
+            await stream.WriteAsync(Encoding.ASCII.GetBytes("ABCD"));
+            await stream.FlushAsync();
+
+            _testOutputHelper.WriteLine(stream2.Length.ToString());
             
-            stream.SetLength(1);
-            var test = 0;
+            await stream2.WriteAsync(Encoding.ASCII.GetBytes("123"));
+            await stream2.FlushAsync();
+            stream2.SetLength(1);
+            _testOutputHelper.WriteLine(stream.Length.ToString());
         }
 
 
