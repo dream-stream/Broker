@@ -59,6 +59,7 @@ namespace Dream_Stream
                         try
                         {
                             var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+                            await Task.Delay(3000);
                             await new MessageHandler(storageService).Handle(context, webSocket);
                         }
                         catch (Exception e)
