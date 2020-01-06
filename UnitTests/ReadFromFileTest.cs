@@ -160,7 +160,7 @@ namespace UnitTests
             var api = new StorageService();
 
 
-            for (var i = 2; i < 3; i++)
+            for (var i = 5; i < 6; i++)
             {
                 var length = 0;
                 var messagesRead = 0;
@@ -192,9 +192,9 @@ namespace UnitTests
             var messagesPerPartition = new int[partitionCount];
             var lengthPerPartition = new int[partitionCount];
             var totalMessage = 0;
-            var api = new StorageApiService();
+            var api = new StorageService();
 
-            var tasks = Enumerable.Range(7, 1).Select(async i =>
+            var tasks = Enumerable.Range(0, 12).Select(async i =>
             {
                 var length = 0;
                 var messagesRead = 0;
@@ -212,11 +212,17 @@ namespace UnitTests
 
                     foreach (var message in messages)
                     {
-                        var deserialized = LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer;
-                        list.Add(deserialized);
-                        messagesRead++;
-                        messagesPerPartition[i] += deserialized.Messages.Count;
-
+                        try
+                        {
+                            var deserialized = LZ4MessagePackSerializer.Deserialize<IMessage>(message) as MessageContainer;
+                            list.Add(deserialized);
+                            messagesRead++;
+                            messagesPerPartition[i] += deserialized.Messages.Count;
+                        }
+                        catch (Exception e)
+                        {
+                            _testOutputHelper.WriteLine(e.ToString());
+                        }
                     }
                 }
 
@@ -388,6 +394,17 @@ namespace UnitTests
             Assert.Equal(0, length);
         }
 
+
+        [Fact]
+        public async Task FileStream()
+        {
+            var path = "C:/ssd/test.txt";
+            var stream = new FileStream(path, FileMode.OpenOrCreate);
+            await stream.WriteAsync(Encoding.ASCII.GetBytes("ABC"));
+            
+            stream.SetLength(1);
+            var test = 0;
+        }
 
 
 

@@ -16,7 +16,7 @@ namespace Dream_Stream.Services
     public class StorageService : IStorage
     {
         private static readonly ConcurrentDictionary<string, long> Offsets = new ConcurrentDictionary<string, long>();
-        private const string BasePath = "/ssd/local";
+        private const string BasePath = "D:/ssd/local";
         private static readonly SemaphoreSlim OffsetLock = new SemaphoreSlim(1, 1);
         private static readonly Counter MessagesWrittenSizeInBytes = Metrics.CreateCounter("messages_written_size_in_bytes", "", new CounterConfiguration
         {
@@ -66,6 +66,7 @@ namespace Dream_Stream.Services
                     fileStream.SetLength(offset);
                 }
                 await fileStream.FlushAsync();
+                fileStream.SetLength(fileStream.Position);
                 _lock.Release();
             }
             catch (Exception e)
@@ -231,7 +232,7 @@ namespace Dream_Stream.Services
 
         public static (List<byte[]> messages, int length) SplitByteRead(byte[] read)
         {
-            if (read.Length < 10 || read[0] == 0) return (null, 0);
+            if (read.Length < 10) return (null, 0);
 
             var list = new List<byte[]>();
             const int messageHeaderSize = 10;
